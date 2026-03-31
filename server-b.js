@@ -217,13 +217,3 @@ server.listen(PORT, () => {
   console.log(`Puppeteer SNES server on port ${PORT}`);
   console.log(`Streaming: ${TARGET_FPS}fps JPEG from ${GAME_URL}`);
 });
-```
-
----
-
-### Key things to know before deploying
-
-**Railway environment variables to set:**
-```
-GAME_URL=https://jdunk4.github.io/ARCADE1/game.html
-PORT=8081
