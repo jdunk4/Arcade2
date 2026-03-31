@@ -11,8 +11,6 @@ const wss = new WebSocketServer({ server });
 const GAME_URL = process.env.GAME_URL || "https://jdunk4.github.io/ARCADE1/game.html";
 const TARGET_FPS = 20;
 const FRAME_MS = 1000 / TARGET_FPS;
-
-// SNES native resolution - matches EmulatorJS canvas exactly
 const VIEWPORT_W = 512;
 const VIEWPORT_H = 448;
 
@@ -98,7 +96,6 @@ async function createSession(ws, romId, wallet) {
     req.continue();
   });
 
-  // Suppress translation noise
   page.on("console", function(msg) {
     var text = msg.text();
     if (text.includes("Translation not found")) return;
@@ -109,10 +106,10 @@ async function createSession(ws, romId, wallet) {
     console.error("[browser] PAGE ERROR: " + err.message);
   });
   page.on("requestfailed", function(req) {
+    var url = req.url();
+    if (url.includes("cdn.emulatorjs.org") && url.endsWith(".json")) return;
     var failure = req.failure();
-    // Skip CDN json failures - we mock those
-    if (req.url().includes("cdn.emulatorjs.org") && req.url().endsWith(".json")) return;
-    console.error("[browser] REQUEST FAILED: " + req.url() + " - " + (failure ? failure.errorText : "unknown"));
+    console.error("[browser] REQUEST FAILED: " + url + " - " + (failure ? failure.errorText : "unknown"));
   });
 
   var gameUrl = GAME_URL + "?wallet=" + encodeURIComponent(wallet) + "&rom=" + encodeURIComponent(romId);
@@ -140,17 +137,13 @@ async function createSession(ws, romId, wallet) {
     canvasFound = true;
     console.log("[session] canvas found - emulator loaded");
   } catch (e) {
-    console.warn("[session] canvas not found within 60s - taking diagnostic screenshot");
+    console.warn("[session] canvas not found within 60s");
     try {
       await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-      console.log("[session] screenshot saved - visit /debug-screenshot.jpg");
-    } catch (se) {
-      console.warn("[session] screenshot failed: " + se.message);
-    }
+    } catch (se) {}
     var elements = await page.evaluate(function() {
       return {
         hasCanvas: document.querySelectorAll("canvas").length,
-        hasGame: document.getElementById("game") !== null,
         bodyText: document.body.innerText.substring(0, 300)
       };
     });
@@ -165,25 +158,23 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Wait for emulator to fully render
-  await new Promise(function(r) { setTimeout(r, 2000); });
+  // Wait for emulator to fully render after canvas appears
+  await new Promise(function(r) { setTimeout(r, 3000); });
 
-  // Dismiss any overlay/settings UI that EmulatorJS shows on load
+  // Close any open menus by clicking the top-left corner of the canvas
+  // (away from menu items which appear at bottom)
+  await page.mouse.click(50, 50);
+  await new Promise(function(r) { setTimeout(r, 300); });
+
   // Click center of canvas to give it focus
-  await page.click("canvas").catch(function() {
-    console.warn("[session] canvas click failed");
-  });
-
-  // Press Escape to close any open menus/overlays
-  await page.keyboard.press("Escape");
+  await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   await new Promise(function(r) { setTimeout(r, 300); });
 
-  // Press Escape again in case of nested menus
-  await page.keyboard.press("Escape");
-  await new Promise(function(r) { setTimeout(r, 300); });
-
-  console.log("[session] dismissed UI overlays");
-  await new Promise(function(r) { setTimeout(r, 500); });
+  // Take a post-dismiss screenshot for debugging
+  try {
+    await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
+    console.log("[session] post-dismiss screenshot saved at /debug-screenshot.jpg");
+  } catch (e) {}
 
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
 
@@ -193,7 +184,6 @@ async function createSession(ws, romId, wallet) {
       return;
     }
     try {
-      // Screenshot just the game canvas, not the whole page
       var canvasEl = await page.$("canvas");
       var imageBase64;
       if (canvasEl) {
