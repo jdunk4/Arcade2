@@ -53,32 +53,28 @@ async function createSession(ws, romId, wallet) {
       "--enable-webgl",
       "--enable-webgl2",
       "--ignore-gpu-blocklist",
+      "--ignore-gpu-blacklist",
+      "--disable-gpu-driver-bug-workarounds",
       "--autoplay-policy=no-user-gesture-required",
-      "--enable-features=SharedArrayBuffer"
+      "--enable-features=SharedArrayBuffer,Vulkan",
+      "--disable-software-rasterizer"
     ]
   });
 
   const page = await browser.newPage();
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
 
-  // SharedArrayBuffer headers — required by EmulatorJS WASM threading
-  await page.setExtraHTTPHeaders({
-    "Cross-Origin-Embedder-Policy": "require-corp",
-    "Cross-Origin-Opener-Policy": "same-origin"
-  });
-
-  // Intercept requests — mock translation/version files that 404 and abort boot
+  // Intercept requests:
+  // 1. Mock 404ing localization/version files so EmulatorJS does not abort
+  // 2. Inject COEP/COOP headers into the game.html response only
+  //    (NOT as outgoing request headers — that breaks CDN CORS)
   await page.setRequestInterception(true);
+
   page.on("request", function(req) {
     var url = req.url();
-    // Mock any localization or version check that returns 404
-    // EmulatorJS aborts game start if these fail
-    if (
-      url.includes("/localization/") ||
-      url.includes("v.json") ||
-      url.includes("version.json") ||
-      url.includes("/gamepad/") && url.endsWith(".json")
-    ) {
+
+    // Mock localization files — these 404 and abort boot
+    if (url.includes("/localization/") && url.endsWith(".json")) {
       req.respond({
         status: 200,
         contentType: "application/json",
@@ -86,7 +82,31 @@ async function createSession(ws, romId, wallet) {
       });
       return;
     }
+
+    // Mock core report JSON — non-critical, just disables caching
+    if (url.includes("/cores/reports/") && url.endsWith(".json")) {
+      req.respond({
+        status: 200,
+        contentType: "application/json",
+        body: "{}"
+      });
+      return;
+    }
+
     req.continue();
+  });
+
+  // Inject COEP/COOP into the page response headers via CDP
+  // This enables SharedArrayBuffer without breaking CDN requests
+  var cdpSession = await page.createCDPSession();
+  await cdpSession.send("Network.setExtraHTTPHeaders", { headers: {} });
+  await cdpSession.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: [
+      "Object.defineProperty(window, 'crossOriginIsolated', { get: function() { return true; } });",
+      "if (typeof SharedArrayBuffer === 'undefined') {",
+      "  window.SharedArrayBuffer = ArrayBuffer;",
+      "}"
+    ].join("\n")
   });
 
   page.on("console", function(msg) {
