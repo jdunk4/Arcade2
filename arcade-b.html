@@ -9,7 +9,7 @@
   <!-- Screen — src replaced every frame with base64 PNG from server -->
   <m-image
     id="screen"
-    src="https://jdunk4.github.io/Gamer/SMW%20-%20Kaizo%20Mario%20World%201.png"
+    src="https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png"
     width="0.88" height="0.72"
     y="1.75" z="0.46">
   </m-image>
@@ -62,7 +62,7 @@
   <!-- Info Card -->
   <m-image
     id="info-card"
-    src="https://jdunk4.github.io/Gamer/KMW1%20-%20Info%20Card.png"
+    src="https://jdunk4.github.io/ARCADE1/KMW1%20-%20Info%20Card.png"
     width="1.4" height="1.0"
     y="3.6" z="0.1"
     visible="false">
@@ -144,7 +144,7 @@
       socket.onclose = function() {
         console.log("SNES stream closed");
         gameActive = false;
-        screen.setAttribute("src", "https://jdunk4.github.io/Gamer/SMW%20-%20Kaizo%20Mario%20World%201.png");
+        screen.setAttribute("src", "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png");
         audio.setAttribute("enabled", "false");
         playBtn.setAttribute("prompt", "Press E to Play Kaizo Mario World");
       };
