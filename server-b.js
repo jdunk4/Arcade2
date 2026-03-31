@@ -47,7 +47,10 @@ async function createSession(ws, romId, wallet) {
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
-      "--disable-gpu",
+      "--disable-gpu",            // disable real GPU
+      "--use-gl=swiftshader",     // use software WebGL — critical for EmulatorJS
+      "--enable-webgl",
+      "--ignore-gpu-blocklist",
       "--autoplay-policy=no-user-gesture-required",
     ],
   });
@@ -55,8 +58,7 @@ async function createSession(ws, romId, wallet) {
   const page = await browser.newPage();
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
 
-  // ── Log everything from inside headless Chrome ────────────────────────
-  // This shows us exactly what's failing — CORS errors, ROM fetch failures, etc.
+  // Log everything from inside headless Chrome
   page.on("console", msg => {
     console.log(`[browser] ${msg.type()}: ${msg.text()}`);
   });
@@ -70,19 +72,16 @@ async function createSession(ws, romId, wallet) {
   const gameUrl = `${GAME_URL}?wallet=${encodeURIComponent(wallet)}&rom=${encodeURIComponent(romId)}`;
   console.log(`[session] navigating to: ${gameUrl}`);
 
-  // domcontentloaded — don't wait for network idle
-  // EmulatorJS keeps making requests so networkidle0 never resolves
   await page.goto(gameUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-  // ── Keepalive pings while emulator boots ──────────────────────────────
-  // Prevents MML from dropping the WebSocket during the ~30-60s boot
+  // Keepalive pings while emulator boots
   const keepalive = setInterval(() => {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
     }
   }, 3000);
 
-  // ── Wait up to 60s for EmulatorJS canvas ─────────────────────────────
+  // Wait up to 60s for EmulatorJS canvas
   let canvasFound = false;
   try {
     await page.waitForSelector("canvas", { timeout: 60000 });
@@ -103,17 +102,14 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // ── Click canvas to trigger autoplay/focus ────────────────────────────
   await page.click("canvas").catch(() => {
     console.warn("[session] canvas click failed");
   });
 
-  // Brief pause after click to let emulator start rendering
   await new Promise(r => setTimeout(r, 1000));
 
   console.log(`[session] starting frame loop at ${TARGET_FPS}fps`);
 
-  // ── Frame loop — screenshot → base64 JPEG → WebSocket ────────────────
   const frameInterval = setInterval(async () => {
     if (ws.readyState !== ws.OPEN) {
       clearInterval(frameInterval);
@@ -168,7 +164,6 @@ async function destroySession(ws) {
   console.log(`[session] destroyed: ${session.wallet} / ${session.romId}`);
 }
 
-// ── WebSocket handler ─────────────────────────────────────────────────────────
 wss.on("connection", async (ws, req) => {
   const url    = new URL(req.url, "http://localhost");
   const romId  = url.searchParams.get("rom")    || "kaizo-mario-world-1";
@@ -184,47 +179,4 @@ wss.on("connection", async (ws, req) => {
       ws.send(JSON.stringify({ type: "status", message: "Emulator running!" }));
     }
   } catch (e) {
-    console.error("[ws] session creation failed:", e.message);
-    ws.send(JSON.stringify({
-      type: "error",
-      message: "Failed to start: " + e.message
-    }));
-    ws.close();
-    return;
-  }
-
-  // ── Input handler ─────────────────────────────────────────────────────
-  ws.on("message", async (data) => {
-    const session = sessions.get(ws);
-    if (!session) return;
-    try {
-      const msg = JSON.parse(data);
-      const key = KEY_MAP[msg.key];
-      if (!key) return;
-      if (msg.type === "keyDown") {
-        await session.page.keyboard.down(key);
-      } else if (msg.type === "keyUp") {
-        await session.page.keyboard.up(key);
-      }
-    } catch (e) {
-      console.warn("[ws] input error:", e.message);
-    }
-  });
-
-  ws.on("close", () => {
-    console.log(`[ws] disconnected: ${wallet}`);
-    destroySession(ws);
-  });
-
-  ws.on("error", (e) => {
-    console.error("[ws] error:", e.message);
-    destroySession(ws);
-  });
-});
-
-// ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 8081;
-server.listen(PORT, () => {
-  console.log(`Puppeteer SNES server on port ${PORT}`);
-  console.log(`Streaming: ${TARGET_FPS}fps JPEG from ${GAME_URL}`);
-});
+    console.error("[ws] session
