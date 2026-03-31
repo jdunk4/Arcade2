@@ -43,13 +43,15 @@ async function createSession(ws, romId, wallet) {
 
   const browser = await puppeteer.launch({
     headless: "new",
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--use-gl=swiftshader",
+      "--use-gl=egl",
       "--enable-webgl",
+      "--enable-webgl2",
       "--ignore-gpu-blocklist",
       "--autoplay-policy=no-user-gesture-required"
     ]
