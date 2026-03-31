@@ -53,12 +53,41 @@ async function createSession(ws, romId, wallet) {
       "--enable-webgl",
       "--enable-webgl2",
       "--ignore-gpu-blocklist",
-      "--autoplay-policy=no-user-gesture-required"
+      "--autoplay-policy=no-user-gesture-required",
+      "--enable-features=SharedArrayBuffer"
     ]
   });
 
   const page = await browser.newPage();
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
+
+  // SharedArrayBuffer headers — required by EmulatorJS WASM threading
+  await page.setExtraHTTPHeaders({
+    "Cross-Origin-Embedder-Policy": "require-corp",
+    "Cross-Origin-Opener-Policy": "same-origin"
+  });
+
+  // Intercept requests — mock translation/version files that 404 and abort boot
+  await page.setRequestInterception(true);
+  page.on("request", function(req) {
+    var url = req.url();
+    // Mock any localization or version check that returns 404
+    // EmulatorJS aborts game start if these fail
+    if (
+      url.includes("/localization/") ||
+      url.includes("v.json") ||
+      url.includes("version.json") ||
+      url.includes("/gamepad/") && url.endsWith(".json")
+    ) {
+      req.respond({
+        status: 200,
+        contentType: "application/json",
+        body: "{}"
+      });
+      return;
+    }
+    req.continue();
+  });
 
   page.on("console", function(msg) {
     console.log("[browser] " + msg.type() + ": " + msg.text());
@@ -94,7 +123,7 @@ async function createSession(ws, romId, wallet) {
   clearInterval(keepalive);
 
   if (!canvasFound) {
-    ws.send(JSON.stringify({ type: "error", message: "Emulator failed to load - check ROM token and CORS" }));
+    ws.send(JSON.stringify({ type: "error", message: "Emulator failed to load" }));
     await browser.close();
     return;
   }
