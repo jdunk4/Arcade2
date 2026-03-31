@@ -105,12 +105,6 @@ async function createSession(ws, romId, wallet) {
   page.on("pageerror", function(err) {
     console.error("[browser] PAGE ERROR: " + err.message);
   });
-  page.on("requestfailed", function(req) {
-    var url = req.url();
-    if (url.includes("cdn.emulatorjs.org") && url.endsWith(".json")) return;
-    var failure = req.failure();
-    console.error("[browser] REQUEST FAILED: " + url + " - " + (failure ? failure.errorText : "unknown"));
-  });
 
   var gameUrl = GAME_URL + "?wallet=" + encodeURIComponent(wallet) + "&rom=" + encodeURIComponent(romId);
   console.log("[session] navigating to: " + gameUrl);
@@ -131,6 +125,7 @@ async function createSession(ws, romId, wallet) {
     }
   }, 3000);
 
+  // Wait for canvas to appear
   var canvasFound = false;
   try {
     await page.waitForSelector("canvas", { timeout: 60000 });
@@ -138,16 +133,7 @@ async function createSession(ws, romId, wallet) {
     console.log("[session] canvas found - emulator loaded");
   } catch (e) {
     console.warn("[session] canvas not found within 60s");
-    try {
-      await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-    } catch (se) {}
-    var elements = await page.evaluate(function() {
-      return {
-        hasCanvas: document.querySelectorAll("canvas").length,
-        bodyText: document.body.innerText.substring(0, 300)
-      };
-    });
-    console.log("[session] page state: " + JSON.stringify(elements));
+    try { await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch (se) {}
   }
 
   clearInterval(keepalive);
@@ -158,22 +144,67 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Wait for emulator to fully render after canvas appears
-  await new Promise(function(r) { setTimeout(r, 3000); });
+  // Now wait for the Play button to actually appear in the DOM
+  // This means the WASM core is loaded and ready
+  console.log("[session] waiting for Play button to appear...");
+  var playButtonFound = false;
+  try {
+    // Poll for Play button text up to 60 seconds
+    var startTime = Date.now();
+    while (Date.now() - startTime < 60000) {
+      var found = await page.evaluate(function() {
+        var els = document.querySelectorAll("*");
+        for (var i = 0; i < els.length; i++) {
+          var text = els[i].innerText ? els[i].innerText.trim() : "";
+          if (text === "Play" && els[i].children.length === 0) {
+            return true;
+          }
+        }
+        return false;
+      });
+      if (found) {
+        playButtonFound = true;
+        console.log("[session] Play button found after " + Math.round((Date.now() - startTime) / 1000) + "s");
+        break;
+      }
+      await new Promise(function(r) { setTimeout(r, 500); });
+    }
+  } catch (e) {
+    console.warn("[session] error waiting for Play button: " + e.message);
+  }
 
-  // Close any open menus by clicking the top-left corner of the canvas
-  // (away from menu items which appear at bottom)
-  await page.mouse.click(50, 50);
-  await new Promise(function(r) { setTimeout(r, 300); });
+  if (!playButtonFound) {
+    console.warn("[session] Play button never appeared - proceeding anyway");
+  }
 
-  // Click center of canvas to give it focus
+  // Small delay after Play button appears
+  await new Promise(function(r) { setTimeout(r, 500); });
+
+  // Click the Play button
+  var playResult = await page.evaluate(function() {
+    var allEls = document.querySelectorAll("*");
+    for (var i = 0; i < allEls.length; i++) {
+      var el = allEls[i];
+      var text = el.innerText ? el.innerText.trim() : "";
+      if (text === "Play" && el.children.length === 0) {
+        el.click();
+        return "clicked Play: " + el.tagName + " class=" + el.className;
+      }
+    }
+    return "Play button not found";
+  });
+  console.log("[session] " + playResult);
+
+  await new Promise(function(r) { setTimeout(r, 1000); });
+
+  // Give canvas focus by clicking center
   await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   await new Promise(function(r) { setTimeout(r, 300); });
 
-  // Take a post-dismiss screenshot for debugging
+  // Save debug screenshot
   try {
     await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-    console.log("[session] post-dismiss screenshot saved at /debug-screenshot.jpg");
+    console.log("[session] post-play screenshot saved at /debug-screenshot.jpg");
   } catch (e) {}
 
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
