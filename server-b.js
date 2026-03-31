@@ -125,15 +125,14 @@ async function createSession(ws, romId, wallet) {
     }
   }, 3000);
 
-  // Wait for canvas to appear
+  // Wait for canvas
   var canvasFound = false;
   try {
     await page.waitForSelector("canvas", { timeout: 60000 });
     canvasFound = true;
-    console.log("[session] canvas found - emulator loaded");
+    console.log("[session] canvas found");
   } catch (e) {
     console.warn("[session] canvas not found within 60s");
-    try { await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch (se) {}
   }
 
   clearInterval(keepalive);
@@ -144,67 +143,62 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Now wait for the Play button to actually appear in the DOM
-  // This means the WASM core is loaded and ready
-  console.log("[session] waiting for Play button to appear...");
-  var playButtonFound = false;
-  try {
-    // Poll for Play button text up to 60 seconds
-    var startTime = Date.now();
-    while (Date.now() - startTime < 60000) {
-      var found = await page.evaluate(function() {
-        var els = document.querySelectorAll("*");
-        for (var i = 0; i < els.length; i++) {
-          var text = els[i].innerText ? els[i].innerText.trim() : "";
-          if (text === "Play" && els[i].children.length === 0) {
-            return true;
-          }
-        }
-        return false;
-      });
-      if (found) {
-        playButtonFound = true;
-        console.log("[session] Play button found after " + Math.round((Date.now() - startTime) / 1000) + "s");
-        break;
-      }
-      await new Promise(function(r) { setTimeout(r, 500); });
-    }
-  } catch (e) {
-    console.warn("[session] error waiting for Play button: " + e.message);
-  }
+  // Wait for emulator to fully initialize - poll for "Failed to start" OR game running
+  console.log("[session] waiting for emulator to initialize...");
+  await new Promise(function(r) { setTimeout(r, 8000); });
 
-  if (!playButtonFound) {
-    console.warn("[session] Play button never appeared - proceeding anyway");
-  }
-
-  // Small delay after Play button appears
-  await new Promise(function(r) { setTimeout(r, 500); });
-
-  // Click the Play button
-  var playResult = await page.evaluate(function() {
-    var allEls = document.querySelectorAll("*");
-    for (var i = 0; i < allEls.length; i++) {
-      var el = allEls[i];
-      var text = el.innerText ? el.innerText.trim() : "";
-      if (text === "Play" && el.children.length === 0) {
-        el.click();
-        return "clicked Play: " + el.tagName + " class=" + el.className;
-      }
-    }
-    return "Play button not found";
-  });
-  console.log("[session] " + playResult);
-
-  await new Promise(function(r) { setTimeout(r, 1000); });
-
-  // Give canvas focus by clicking center
-  await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
-  await new Promise(function(r) { setTimeout(r, 300); });
-
-  // Save debug screenshot
+  // Take screenshot to see current state
   try {
     await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-    console.log("[session] post-play screenshot saved at /debug-screenshot.jpg");
+    console.log("[session] pre-click screenshot saved");
+  } catch(e) {}
+
+  // Log all clickable elements to find Play button
+  var allClickable = await page.evaluate(function() {
+    var results = [];
+    var els = document.querySelectorAll("button, [role='button'], span, div");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var text = (el.innerText || "").trim();
+      if (text && text.length < 30 && text.length > 0) {
+        var rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          results.push({
+            tag: el.tagName,
+            text: text,
+            x: Math.round(rect.left + rect.width/2),
+            y: Math.round(rect.top + rect.height/2),
+            cls: el.className.substring(0, 50)
+          });
+        }
+      }
+    }
+    return results.slice(0, 30);
+  });
+  console.log("[session] clickable elements: " + JSON.stringify(allClickable));
+
+  // Find and click Play button by coordinates
+  var playEl = allClickable.find(function(el) {
+    return el.text === "Play" || el.text.toLowerCase() === "play";
+  });
+
+  if (playEl) {
+    console.log("[session] clicking Play at " + playEl.x + "," + playEl.y);
+    await page.mouse.click(playEl.x, playEl.y);
+    await new Promise(function(r) { setTimeout(r, 1000); });
+    // Click canvas center to give focus
+    await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
+  } else {
+    console.warn("[session] Play button not found in element list - clicking center");
+    await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
+  }
+
+  await new Promise(function(r) { setTimeout(r, 500); });
+
+  // Post-click screenshot
+  try {
+    await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
+    console.log("[session] post-click screenshot saved at /debug-screenshot.jpg");
   } catch (e) {}
 
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
