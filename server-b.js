@@ -55,33 +55,50 @@ async function createSession(ws, romId, wallet) {
   const page = await browser.newPage();
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
 
+  // ── Log everything from inside headless Chrome ────────────────────────
+  // This shows us exactly what's failing — CORS errors, ROM fetch failures, etc.
+  page.on("console", msg => {
+    console.log(`[browser] ${msg.type()}: ${msg.text()}`);
+  });
+  page.on("pageerror", err => {
+    console.error(`[browser] PAGE ERROR: ${err.message}`);
+  });
+  page.on("requestfailed", req => {
+    console.error(`[browser] REQUEST FAILED: ${req.url()} — ${req.failure()?.errorText}`);
+  });
+
   const gameUrl = `${GAME_URL}?wallet=${encodeURIComponent(wallet)}&rom=${encodeURIComponent(romId)}`;
   console.log(`[session] navigating to: ${gameUrl}`);
 
-  await page.goto(gameUrl, { waitUntil: "networkidle0", timeout: 60000 });
+  // domcontentloaded — don't wait for network idle
+  // EmulatorJS keeps making requests so networkidle0 never resolves
+  await page.goto(gameUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
   // ── Keepalive pings while emulator boots ──────────────────────────────
-  // Prevents MML from dropping the WebSocket during the ~30s EmulatorJS boot
+  // Prevents MML from dropping the WebSocket during the ~30-60s boot
   const keepalive = setInterval(() => {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
     }
   }, 3000);
 
-  // ── Wait up to 45s for EmulatorJS canvas ─────────────────────────────
+  // ── Wait up to 60s for EmulatorJS canvas ─────────────────────────────
   let canvasFound = false;
   try {
-    await page.waitForSelector("canvas", { timeout: 45000 });
+    await page.waitForSelector("canvas", { timeout: 60000 });
     canvasFound = true;
     console.log(`[session] canvas found — emulator loaded`);
   } catch (e) {
-    console.warn(`[session] canvas not found within 45s`);
+    console.warn(`[session] canvas not found within 60s`);
   }
 
   clearInterval(keepalive);
 
   if (!canvasFound) {
-    ws.send(JSON.stringify({ type: "error", message: "Emulator failed to load — ROM may not be accessible" }));
+    ws.send(JSON.stringify({
+      type: "error",
+      message: "Emulator failed to load — check ROM token and CORS"
+    }));
     await browser.close();
     return;
   }
@@ -96,7 +113,7 @@ async function createSession(ws, romId, wallet) {
 
   console.log(`[session] starting frame loop at ${TARGET_FPS}fps`);
 
-  // ── Frame loop ────────────────────────────────────────────────────────
+  // ── Frame loop — screenshot → base64 JPEG → WebSocket ────────────────
   const frameInterval = setInterval(async () => {
     if (ws.readyState !== ws.OPEN) {
       clearInterval(frameInterval);
@@ -168,11 +185,15 @@ wss.on("connection", async (ws, req) => {
     }
   } catch (e) {
     console.error("[ws] session creation failed:", e.message);
-    ws.send(JSON.stringify({ type: "error", message: "Failed to start: " + e.message }));
+    ws.send(JSON.stringify({
+      type: "error",
+      message: "Failed to start: " + e.message
+    }));
     ws.close();
     return;
   }
 
+  // ── Input handler ─────────────────────────────────────────────────────
   ws.on("message", async (data) => {
     const session = sessions.get(ws);
     if (!session) return;
