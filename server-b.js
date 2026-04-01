@@ -1,7 +1,7 @@
 const express = require("express");
 const http = require("http");
 const { WebSocketServer } = require("ws");
-const puppeteer = require("puppeteer");
+const { launch, getStream } = require("puppeteer-stream");
 const fs = require("fs");
 
 const app = express();
@@ -52,9 +52,11 @@ const sessions = new Map();
 async function createSession(ws, romId, wallet) {
   console.log("[session] creating: rom=" + romId + " wallet=" + wallet);
 
-  const browser = await puppeteer.launch({
-    headless: false,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
+  // Use puppeteer-stream launch instead of puppeteer.launch
+  // This loads the capture extension needed for audio
+  const browser = await launch({
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+    defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -65,7 +67,9 @@ async function createSession(ws, romId, wallet) {
       "--ignore-gpu-blacklist",
       "--autoplay-policy=no-user-gesture-required",
       "--enable-features=SharedArrayBuffer",
-      "--display=:99"
+      "--display=:99",
+      "--alsa-output-device=pulse",
+      "--use-fake-ui-for-media-stream"
     ]
   });
 
@@ -125,7 +129,6 @@ async function createSession(ws, romId, wallet) {
     }
   }, 3000);
 
-  // Wait for canvas
   var canvasFound = false;
   try {
     await page.waitForSelector("canvas", { timeout: 60000 });
@@ -133,6 +136,7 @@ async function createSession(ws, romId, wallet) {
     console.log("[session] canvas found");
   } catch (e) {
     console.warn("[session] canvas not found within 60s");
+    try { await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch (se) {}
   }
 
   clearInterval(keepalive);
@@ -143,63 +147,65 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Wait for emulator to fully initialize - poll for "Failed to start" OR game running
-  console.log("[session] waiting for emulator to initialize...");
+  // Wait for emulator to settle
   await new Promise(function(r) { setTimeout(r, 8000); });
 
-  // Take screenshot to see current state
-  try {
-    await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-    console.log("[session] pre-click screenshot saved");
-  } catch(e) {}
-
-  // Log all clickable elements to find Play button
+  // Find and click Play button by coordinates
   var allClickable = await page.evaluate(function() {
     var results = [];
     var els = document.querySelectorAll("button, [role='button'], span, div");
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
       var text = (el.innerText || "").trim();
-      if (text && text.length < 30 && text.length > 0) {
+      if (text && text.length < 30) {
         var rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
-          results.push({
-            tag: el.tagName,
-            text: text,
-            x: Math.round(rect.left + rect.width/2),
-            y: Math.round(rect.top + rect.height/2),
-            cls: el.className.substring(0, 50)
-          });
+          results.push({ tag: el.tagName, text: text, x: Math.round(rect.left + rect.width/2), y: Math.round(rect.top + rect.height/2) });
         }
       }
     }
     return results.slice(0, 30);
   });
-  console.log("[session] clickable elements: " + JSON.stringify(allClickable));
 
-  // Find and click Play button by coordinates
-  var playEl = allClickable.find(function(el) {
-    return el.text === "Play" || el.text.toLowerCase() === "play";
-  });
-
+  var playEl = allClickable.find(function(el) { return el.text === "Play"; });
   if (playEl) {
     console.log("[session] clicking Play at " + playEl.x + "," + playEl.y);
     await page.mouse.click(playEl.x, playEl.y);
     await new Promise(function(r) { setTimeout(r, 1000); });
-    // Click canvas center to give focus
     await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   } else {
-    console.warn("[session] Play button not found in element list - clicking center");
     await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   }
 
   await new Promise(function(r) { setTimeout(r, 500); });
 
-  // Post-click screenshot
+  // ── Start audio+video capture via puppeteer-stream ────────────────────
+  var audioStream = null;
   try {
-    await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 });
-    console.log("[session] post-click screenshot saved at /debug-screenshot.jpg");
-  } catch (e) {}
+    audioStream = await getStream(page, {
+      audio: true,
+      video: false,
+      mimeType: "audio/webm;codecs=opus",
+      audioBitsPerSecond: 64000,
+      frameSize: 100  // ms per chunk — smaller = lower latency
+    });
+    console.log("[session] audio stream started");
+
+    audioStream.on("data", function(chunk) {
+      if (ws.readyState !== 1) return;
+      var base64 = chunk.toString("base64");
+      ws.send(JSON.stringify({ type: "audio", data: base64 }), function(err) {
+        if (err) console.warn("[session] audio send error: " + err.message);
+      });
+    });
+
+    audioStream.on("error", function(e) {
+      console.warn("[session] audio stream error: " + e.message);
+    });
+
+  } catch (e) {
+    console.warn("[session] audio capture failed (continuing without audio): " + e.message);
+  }
 
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
 
@@ -212,17 +218,9 @@ async function createSession(ws, romId, wallet) {
       var canvasEl = await page.$("canvas");
       var imageBase64;
       if (canvasEl) {
-        imageBase64 = await canvasEl.screenshot({
-          type: "jpeg",
-          quality: 70,
-          encoding: "base64"
-        });
+        imageBase64 = await canvasEl.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       } else {
-        imageBase64 = await page.screenshot({
-          type: "jpeg",
-          quality: 70,
-          encoding: "base64"
-        });
+        imageBase64 = await page.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       }
       var dataUri = "data:image/jpeg;base64," + imageBase64;
       ws.send(JSON.stringify({ image: dataUri }), function(err) {
@@ -235,7 +233,7 @@ async function createSession(ws, romId, wallet) {
     }
   }, FRAME_MS);
 
-  var session = { browser: browser, page: page, frameInterval: frameInterval, wallet: wallet, romId: romId };
+  var session = { browser, page, frameInterval, audioStream, wallet, romId };
   sessions.set(ws, session);
   console.log("[session] live: " + wallet + " / " + romId);
 }
@@ -244,11 +242,10 @@ async function destroySession(ws) {
   var session = sessions.get(ws);
   if (!session) return;
   clearInterval(session.frameInterval);
-  try {
-    await session.browser.close();
-  } catch (e) {
-    console.warn("[session] browser close error: " + e.message);
+  if (session.audioStream) {
+    try { session.audioStream.destroy(); } catch (e) {}
   }
+  try { await session.browser.close(); } catch (e) {}
   sessions.delete(ws);
   console.log("[session] destroyed: " + session.wallet + " / " + session.romId);
 }
@@ -280,11 +277,8 @@ wss.on("connection", async function(ws, req) {
       var msg = JSON.parse(data);
       var key = KEY_MAP[msg.key];
       if (!key) return;
-      if (msg.type === "keyDown") {
-        await session.page.keyboard.down(key);
-      } else if (msg.type === "keyUp") {
-        await session.page.keyboard.up(key);
-      }
+      if (msg.type === "keyDown") { await session.page.keyboard.down(key); }
+      else if (msg.type === "keyUp") { await session.page.keyboard.up(key); }
     } catch (e) {
       console.warn("[ws] input error: " + e.message);
     }
