@@ -33,18 +33,9 @@ app.get("/debug-screenshot.jpg", (req, res) => {
 });
 
 const KEY_MAP = {
-  up: "ArrowUp",
-  down: "ArrowDown",
-  left: "ArrowLeft",
-  right: "ArrowRight",
-  a: "z",
-  b: "x",
-  x: "a",
-  y: "s",
-  start: "Enter",
-  select: "Shift",
-  l: "q",
-  r: "w"
+  up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
+  a: "z", b: "x", x: "a", y: "s",
+  start: "Enter", select: "Shift", l: "q", r: "w"
 };
 
 const sessions = new Map();
@@ -52,14 +43,14 @@ const sessions = new Map();
 async function createSession(ws, romId, wallet) {
   console.log("[session] creating: rom=" + romId + " wallet=" + wallet);
 
-  // Use puppeteer-stream launch instead of puppeteer.launch
-  // This loads the capture extension needed for audio
   const browser = await launch({
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
-      defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
-      ignoreDefaultArgs: ["--mute-audio"],  // ← unmute Chrome
-      startDelay: 500,
-      args:[
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+    defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
+    // CRITICAL: remove --mute-audio so Chrome can actually output sound
+    ignoreDefaultArgs: ["--mute-audio"],
+    // Give the puppeteer-stream extension time to load in Docker
+    startDelay: 2000,
+    args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
@@ -70,8 +61,8 @@ async function createSession(ws, romId, wallet) {
       "--autoplay-policy=no-user-gesture-required",
       "--enable-features=SharedArrayBuffer",
       "--display=:99",
-      "--audio-output-channels=2",
-      "--use-fake-ui-for-media-stream"
+      "--use-fake-ui-for-media-stream",
+      "--audio-output-channels=2"
     ]
   });
 
@@ -79,24 +70,15 @@ async function createSession(ws, romId, wallet) {
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
 
   await page.evaluateOnNewDocument(function() {
-    Object.defineProperty(window, "crossOriginIsolated", {
-      get: function() { return true; }
-    });
-    if (typeof SharedArrayBuffer === "undefined") {
-      window.SharedArrayBuffer = ArrayBuffer;
-    }
+    Object.defineProperty(window, "crossOriginIsolated", { get: function() { return true; } });
+    if (typeof SharedArrayBuffer === "undefined") window.SharedArrayBuffer = ArrayBuffer;
   });
 
   await page.setRequestInterception(true);
   page.on("request", function(req) {
     var url = req.url();
     if (url.includes("cdn.emulatorjs.org") && url.endsWith(".json")) {
-      req.respond({
-        status: 200,
-        contentType: "application/json",
-        headers: { "Access-Control-Allow-Origin": "*" },
-        body: "{}"
-      });
+      req.respond({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: "{}" });
       return;
     }
     req.continue();
@@ -108,13 +90,10 @@ async function createSession(ws, romId, wallet) {
     if (text.includes("Language set to")) return;
     console.log("[browser] " + msg.type() + ": " + text);
   });
-  page.on("pageerror", function(err) {
-    console.error("[browser] PAGE ERROR: " + err.message);
-  });
+  page.on("pageerror", function(err) { console.error("[browser] PAGE ERROR: " + err.message); });
 
   var gameUrl = GAME_URL + "?wallet=" + encodeURIComponent(wallet) + "&rom=" + encodeURIComponent(romId);
   console.log("[session] navigating to: " + gameUrl);
-
   await page.goto(gameUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
   var webglStatus = await page.evaluate(function() {
@@ -126,9 +105,7 @@ async function createSession(ws, romId, wallet) {
   console.log("[session] WebGL check: " + webglStatus);
 
   var keepalive = setInterval(function() {
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
-    }
+    if (ws.readyState === 1) ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
   }, 3000);
 
   var canvasFound = false;
@@ -149,10 +126,9 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Wait for emulator to settle
+  // Wait for emulator to settle then find and click Play
   await new Promise(function(r) { setTimeout(r, 8000); });
 
-  // Find and click Play button by coordinates
   var allClickable = await page.evaluate(function() {
     var results = [];
     var els = document.querySelectorAll("button, [role='button'], span, div");
@@ -162,7 +138,7 @@ async function createSession(ws, romId, wallet) {
       if (text && text.length < 30) {
         var rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
-          results.push({ tag: el.tagName, text: text, x: Math.round(rect.left + rect.width/2), y: Math.round(rect.top + rect.height/2) });
+          results.push({ text: text, x: Math.round(rect.left + rect.width/2), y: Math.round(rect.top + rect.height/2) });
         }
       }
     }
@@ -174,29 +150,26 @@ async function createSession(ws, romId, wallet) {
     console.log("[session] clicking Play at " + playEl.x + "," + playEl.y);
     await page.mouse.click(playEl.x, playEl.y);
     await new Promise(function(r) { setTimeout(r, 1000); });
-    await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
-  } else {
-    await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   }
-
+  await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   await new Promise(function(r) { setTimeout(r, 500); });
 
-  // ── Start audio+video capture via puppeteer-stream ────────────────────
+  // ── Start audio capture ───────────────────────────────────────────────
   var audioStream = null;
   try {
+    console.log("[session] attempting audio capture...");
     audioStream = await getStream(page, {
       audio: true,
       video: false,
       mimeType: "audio/webm;codecs=opus",
       audioBitsPerSecond: 64000,
-      frameSize: 100  // ms per chunk — smaller = lower latency
+      frameSize: 100
     });
-    console.log("[session] audio stream started");
+    console.log("[session] audio stream started ✓");
 
     audioStream.on("data", function(chunk) {
       if (ws.readyState !== 1) return;
-      var base64 = chunk.toString("base64");
-      ws.send(JSON.stringify({ type: "audio", data: base64 }), function(err) {
+      ws.send(JSON.stringify({ type: "audio", data: chunk.toString("base64") }), function(err) {
         if (err) console.warn("[session] audio send error: " + err.message);
       });
     });
@@ -206,16 +179,14 @@ async function createSession(ws, romId, wallet) {
     });
 
   } catch (e) {
-    console.warn("[session] audio capture failed (continuing without audio): " + e.message);
+    console.warn("[session] audio capture failed: " + (e && e.message ? e.message : e));
+    console.warn("[session] continuing without audio");
   }
 
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
 
   var frameInterval = setInterval(async function() {
-    if (ws.readyState !== 1) {
-      clearInterval(frameInterval);
-      return;
-    }
+    if (ws.readyState !== 1) { clearInterval(frameInterval); return; }
     try {
       var canvasEl = await page.$("canvas");
       var imageBase64;
@@ -224,8 +195,7 @@ async function createSession(ws, romId, wallet) {
       } else {
         imageBase64 = await page.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       }
-      var dataUri = "data:image/jpeg;base64," + imageBase64;
-      ws.send(JSON.stringify({ image: dataUri }), function(err) {
+      ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + imageBase64 }), function(err) {
         if (err) console.warn("[session] send error: " + err.message);
       });
     } catch (e) {
@@ -235,8 +205,7 @@ async function createSession(ws, romId, wallet) {
     }
   }, FRAME_MS);
 
-  var session = { browser, page, frameInterval, audioStream, wallet, romId };
-  sessions.set(ws, session);
+  sessions.set(ws, { browser, page, frameInterval, audioStream, wallet, romId });
   console.log("[session] live: " + wallet + " / " + romId);
 }
 
@@ -244,9 +213,7 @@ async function destroySession(ws) {
   var session = sessions.get(ws);
   if (!session) return;
   clearInterval(session.frameInterval);
-  if (session.audioStream) {
-    try { session.audioStream.destroy(); } catch (e) {}
-  }
+  if (session.audioStream) { try { session.audioStream.destroy(); } catch (e) {} }
   try { await session.browser.close(); } catch (e) {}
   sessions.delete(ws);
   console.log("[session] destroyed: " + session.wallet + " / " + session.romId);
@@ -262,9 +229,7 @@ wss.on("connection", async function(ws, req) {
 
   try {
     await createSession(ws, romId, wallet);
-    if (sessions.has(ws)) {
-      ws.send(JSON.stringify({ type: "status", message: "Emulator running!" }));
-    }
+    if (sessions.has(ws)) ws.send(JSON.stringify({ type: "status", message: "Emulator running!" }));
   } catch (e) {
     console.error("[ws] session creation failed: " + e.message);
     ws.send(JSON.stringify({ type: "error", message: "Failed to start: " + e.message }));
@@ -279,22 +244,13 @@ wss.on("connection", async function(ws, req) {
       var msg = JSON.parse(data);
       var key = KEY_MAP[msg.key];
       if (!key) return;
-      if (msg.type === "keyDown") { await session.page.keyboard.down(key); }
-      else if (msg.type === "keyUp") { await session.page.keyboard.up(key); }
-    } catch (e) {
-      console.warn("[ws] input error: " + e.message);
-    }
+      if (msg.type === "keyDown") await session.page.keyboard.down(key);
+      else if (msg.type === "keyUp") await session.page.keyboard.up(key);
+    } catch (e) { console.warn("[ws] input error: " + e.message); }
   });
 
-  ws.on("close", function() {
-    console.log("[ws] disconnected: " + wallet);
-    destroySession(ws);
-  });
-
-  ws.on("error", function(e) {
-    console.error("[ws] error: " + e.message);
-    destroySession(ws);
-  });
+  ws.on("close", function() { console.log("[ws] disconnected: " + wallet); destroySession(ws); });
+  ws.on("error", function(e) { console.error("[ws] error: " + e.message); destroySession(ws); });
 });
 
 var PORT = process.env.PORT || 8081;
