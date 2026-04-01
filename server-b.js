@@ -16,6 +16,9 @@ const FRAME_MS      = 1000 / TARGET_FPS;
 const VIEWPORT_W    = 512;
 const VIEWPORT_H    = 448;
 
+// How long to show the loading screen before navigating to game (ms)
+const LOADING_SCREEN_MS = 20000;
+
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.sendStatus(200);
@@ -65,38 +68,38 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
     ]
   });
 
-  // Track alive state — prevents screenshot errors after disconnect
-  var alive = true;
+  const page = await browser.newPage();
+  await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
 
-  // ── Page 1: Loading screen ────────────────────────────────────
-  const loadingPage = await browser.newPage();
-  await loadingPage.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
-  console.log("[session] opening loading screen: " + LOADING_URL);
-  await loadingPage.goto(LOADING_URL, { waitUntil: "domcontentloaded", timeout: 10000 });
-  console.log("[session] loading screen ready — streaming now");
+  // ── Step 1: Show loading screen on the ACTIVE page ────────────
+  // Single page = active tab = canvas renders = screenshots work
+  console.log("[session] showing loading screen: " + LOADING_URL);
+  await page.goto(LOADING_URL, { waitUntil: "domcontentloaded", timeout: 10000 });
 
-  // Stream loading page — setInterval not rAF so it runs in background tab
+  // Stream loading screen for LOADING_SCREEN_MS before navigating
+  var showingLoader = true;
   var loadingInterval = setInterval(async function() {
-    if (!alive || ws.readyState !== 1) { clearInterval(loadingInterval); return; }
+    if (ws.readyState !== 1) { clearInterval(loadingInterval); return; }
+    if (!showingLoader) { clearInterval(loadingInterval); return; }
     try {
-      var imageBase64 = await loadingPage.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
+      var imageBase64 = await page.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       if (ws.readyState === 1) ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + imageBase64 }));
-    } catch(e) {
-      clearInterval(loadingInterval);
-    }
+    } catch(e) { clearInterval(loadingInterval); }
   }, FRAME_MS);
 
-  // ── Page 2: Game page loads in background ─────────────────────
-  const gamePage = await browser.newPage();
-  await gamePage.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
+  // Wait for loading screen to play
+  await new Promise(function(r) { setTimeout(r, LOADING_SCREEN_MS); });
+  showingLoader = false;
+  clearInterval(loadingInterval);
 
-  await gamePage.evaluateOnNewDocument(function() {
+  // ── Step 2: Navigate to game (same page = active tab = audio works) ──
+  await page.evaluateOnNewDocument(function() {
     Object.defineProperty(window, "crossOriginIsolated", { get: function() { return true; } });
     if (typeof SharedArrayBuffer === "undefined") window.SharedArrayBuffer = ArrayBuffer;
   });
 
-  await gamePage.setRequestInterception(true);
-  gamePage.on("request", function(req) {
+  await page.setRequestInterception(true);
+  page.on("request", function(req) {
     var url = req.url();
     if (url.includes("cdn.emulatorjs.org") && url.endsWith(".json")) {
       req.respond({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: "{}" });
@@ -105,13 +108,13 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
     req.continue();
   });
 
-  gamePage.on("console", function(msg) {
+  page.on("console", function(msg) {
     var text = msg.text();
     if (text.includes("Translation not found")) return;
     if (text.includes("Language set to")) return;
     console.log("[browser] " + msg.type() + ": " + text);
   });
-  gamePage.on("pageerror", function(err) { console.error("[browser] PAGE ERROR: " + err.message); });
+  page.on("pageerror", function(err) { console.error("[browser] PAGE ERROR: " + err.message); });
 
   var gameUrl = GAME_BASE_URL
     + "?rom="    + encodeURIComponent(romFile)
@@ -119,34 +122,38 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
     + "&id="     + encodeURIComponent(romId)
     + "&wallet=" + encodeURIComponent(wallet);
 
-  console.log("[session] loading game in background: " + gameUrl);
-  await gamePage.goto(gameUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  console.log("[session] navigating to game: " + gameUrl);
 
-  // ── Wait for emulator canvas ──────────────────────────────────
+  // Stream a keepalive status while game loads
+  var keepalive = setInterval(function() {
+    if (ws.readyState === 1) ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
+  }, 3000);
+
+  await page.goto(gameUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+  // ── Step 3: Wait for emulator canvas ─────────────────────────
   var canvasFound = false;
   try {
-    await gamePage.waitForSelector("canvas", { timeout: 60000 });
+    await page.waitForSelector("canvas", { timeout: 60000 });
     canvasFound = true;
-    console.log("[session] canvas found — switching to game");
+    console.log("[session] canvas found");
   } catch(e) {
     console.warn("[session] canvas not found within 60s");
-    try { await gamePage.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch(se) {}
+    try { await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch(se) {}
   }
 
-  // Stop loading screen
-  clearInterval(loadingInterval);
-  try { await loadingPage.close(); } catch(e) {}
+  clearInterval(keepalive);
 
-  if (!canvasFound || !alive) {
-    if (alive) ws.send(JSON.stringify({ type: "error", message: "Emulator failed to load" }));
+  if (!canvasFound) {
+    ws.send(JSON.stringify({ type: "error", message: "Emulator failed to load" }));
     await browser.close();
     return;
   }
 
-  // ── Click Play and focus canvas ───────────────────────────────
+  // ── Step 4: Click Play and focus ─────────────────────────────
   await new Promise(function(r) { setTimeout(r, 8000); });
 
-  var allClickable = await gamePage.evaluate(function() {
+  var allClickable = await page.evaluate(function() {
     var results = [];
     var els = document.querySelectorAll("button, [role='button'], span, div");
     for (var i = 0; i < els.length; i++) {
@@ -165,13 +172,13 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
   var playEl = allClickable.find(function(el) { return el.text === "Play"; });
   if (playEl) {
     console.log("[session] clicking Play at " + playEl.x + "," + playEl.y);
-    await gamePage.mouse.click(playEl.x, playEl.y);
+    await page.mouse.click(playEl.x, playEl.y);
     await new Promise(function(r) { setTimeout(r, 1000); });
   }
-  await gamePage.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
+  await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   await new Promise(function(r) { setTimeout(r, 500); });
 
-  // ── Audio — same as working original ─────────────────────────
+  // ── Step 5: Audio capture ─────────────────────────────────────
   var ffmpegProc = null;
   try {
     console.log("[session] starting ffmpeg audio capture from PulseAudio...");
@@ -188,7 +195,7 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
     ffmpegProc.stdout.on("data", function(chunk) {
-      if (!alive || ws.readyState !== 1) return;
+      if (ws.readyState !== 1) return;
       try { ws.send(JSON.stringify({ type: "audio", data: chunk.toString("base64") })); }
       catch(e) { console.warn("[ffmpeg] send error: " + e.message); }
     });
@@ -209,41 +216,36 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
     console.warn("[session] ffmpeg setup failed: " + e.message);
   }
 
-  // ── Game frame loop ───────────────────────────────────────────
+  // ── Step 6: Game frame loop ───────────────────────────────────
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
 
   var frameInterval = setInterval(async function() {
-    if (!alive || ws.readyState !== 1) { clearInterval(frameInterval); return; }
+    if (ws.readyState !== 1) { clearInterval(frameInterval); return; }
     try {
-      var canvasEl = await gamePage.$("canvas");
+      var canvasEl = await page.$("canvas");
       var imageBase64;
       if (canvasEl) {
         imageBase64 = await canvasEl.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       } else {
-        imageBase64 = await gamePage.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
+        imageBase64 = await page.screenshot({ type: "jpeg", quality: 70, encoding: "base64" });
       }
-      if (ws.readyState === 1) {
-        ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + imageBase64 }), function(err) {
-          if (err) console.warn("[session] send error: " + err.message);
-        });
-      }
+      ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + imageBase64 }), function(err) {
+        if (err) console.warn("[session] send error: " + err.message);
+      });
     } catch(e) {
-      if (alive) console.error("[session] screenshot failed: " + e.message);
+      console.error("[session] screenshot failed: " + e.message);
       clearInterval(frameInterval);
-      if (alive) destroySession(ws);
+      destroySession(ws);
     }
   }, FRAME_MS);
 
-  sessions.set(ws, { browser, page: gamePage, frameInterval, ffmpegProc, wallet, romId,
-    setAlive: function(v) { alive = v; }
-  });
+  sessions.set(ws, { browser, page, frameInterval, ffmpegProc, wallet, romId });
   console.log("[session] live: " + wallet + " / " + romId);
 }
 
 async function destroySession(ws) {
   var session = sessions.get(ws);
   if (!session) return;
-  session.setAlive(false);
   clearInterval(session.frameInterval);
   if (session.ffmpegProc) {
     try { session.ffmpegProc.kill("SIGTERM"); } catch(e) {}
@@ -285,14 +287,8 @@ wss.on("connection", async function(ws, req) {
     } catch(e) { console.warn("[ws] input error: " + e.message); }
   });
 
-  ws.on("close", function() {
-    console.log("[ws] disconnected: " + wallet);
-    destroySession(ws);
-  });
-  ws.on("error", function(e) {
-    console.error("[ws] error: " + e.message);
-    destroySession(ws);
-  });
+  ws.on("close", function() { console.log("[ws] disconnected: " + wallet); destroySession(ws); });
+  ws.on("error", function(e) { console.error("[ws] error: " + e.message); destroySession(ws); });
 });
 
 var PORT = process.env.PORT || 8081;
@@ -300,5 +296,6 @@ server.listen(PORT, function() {
   console.log("Puppeteer SNES server on port " + PORT);
   console.log("Base game URL: " + GAME_BASE_URL);
   console.log("Loading URL:   " + LOADING_URL);
+  console.log("Loading screen duration: " + LOADING_SCREEN_MS + "ms");
   console.log("Streaming: " + TARGET_FPS + "fps JPEG");
 });
