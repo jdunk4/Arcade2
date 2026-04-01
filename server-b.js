@@ -55,9 +55,11 @@ async function createSession(ws, romId, wallet) {
   // Use puppeteer-stream launch instead of puppeteer.launch
   // This loads the capture extension needed for audio
   const browser = await launch({
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
-    defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
-    args: [
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+      defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
+      ignoreDefaultArgs: ["--mute-audio"],  // ← unmute Chrome
+      startDelay: 500,
+      args:[
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
@@ -68,7 +70,7 @@ async function createSession(ws, romId, wallet) {
       "--autoplay-policy=no-user-gesture-required",
       "--enable-features=SharedArrayBuffer",
       "--display=:99",
-      "--alsa-output-device=pulse",
+      "--audio-output-channels=2",
       "--use-fake-ui-for-media-stream"
     ]
   });
