@@ -37,7 +37,13 @@ pactl load-module module-null-sink sink_name=virtual_speaker \
   sink_properties=device.description=VirtualSpeaker 2>/dev/null || \
   echo "null sink may already be loaded, continuing..."
 pactl set-default-sink virtual_speaker 2>/dev/null || true
-echo "PulseAudio virtual_speaker sink ready"
+
+# Log available sources so we can verify monitor name
+echo "=== PulseAudio sinks ==="
+pactl list short sinks || true
+echo "=== PulseAudio sources ==="
+pactl list short sources || true
+echo "=== PulseAudio ready ==="
 
 # Start Node server
 echo "Starting Node server..."
