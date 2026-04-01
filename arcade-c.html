@@ -105,8 +105,12 @@
       } catch(e) {}
     }
 
+    var MAX_AUDIO_QUEUE = 3;
+
     function flushAudioQueue() {
       if (!sbReady || !sourceBuffer || sourceBuffer.updating || audioChunkQueue.length === 0) return;
+      // Drop stale chunks if queue is backed up — prevents overlapping audio
+      while (audioChunkQueue.length > MAX_AUDIO_QUEUE) audioChunkQueue.shift();
       var chunk = audioChunkQueue.shift();
       try { sourceBuffer.appendBuffer(chunk); } catch(e) { audioChunkQueue = []; return; }
       sourceBuffer.addEventListener("updateend", function onUpdate() {
