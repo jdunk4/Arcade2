@@ -1,6 +1,5 @@
 FROM node:18-slim
 
-# Install Chromium + Mesa WebGL + Xvfb + PulseAudio
 RUN apt-get update && apt-get install -y \
     chromium \
     libgl1-mesa-dri \
@@ -32,7 +31,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
 COPY package.json .
 RUN npm install
 
@@ -45,11 +43,9 @@ COPY . .
 
 EXPOSE 8081
 
-# Boot order:
-# 1. PulseAudio virtual sound server (gives Chrome an audio output device)
-# 2. Xvfb virtual display (gives Chrome a screen with OpenGL)
-# 3. Wait 2s for both to initialize
-# 4. Start Node server
-CMD pulseaudio --start --exit-idle-time=-1 --daemonize=true && \
+CMD pulseaudio --system --disallow-module-loading=false --exit-idle-time=-1 --daemonize=true && \
+    sleep 1 && \
+    pactl load-module module-null-sink sink_name=virtual_speaker && \
+    pactl set-default-sink virtual_speaker && \
     Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset & \
     sleep 2 && node server-b.js
