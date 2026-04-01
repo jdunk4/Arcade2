@@ -71,16 +71,14 @@
   <script>
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // CONFIG — only these 4 lines change per cabinet
+    // CONFIG — only these lines change per cabinet
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     var ROM_FILE  = "Kaizo Mario (English).sfc";
     var ROM_CORE  = "snes";
     var ROM_ID    = "kaizo-mario-world-1";
     var ROM_TITLE = "Kaizo Mario World";
+    var ROM_PREVIEW = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SMW%20-%20Kaizo%20Mario%20World%201.png";
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // SERVERS — never change these
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     var SNES_SERVER_WS = "wss://arcade2-production.up.railway.app";
     var BACKEND_SERVER = "https://gamer-production.up.railway.app";
     var WALLET         = "anonymous";
@@ -90,9 +88,7 @@
       if (e) e.setAttribute(attr, val);
     }
 
-    var socket              = null;
-    var gameActive          = false;
-    var controllerConnected = false;
+    var socket = null, gameActive = false, controllerConnected = false;
 
     // ── Audio ──────────────────────────────────────────────────────
     var audioEl = null, mediaSource = null, sourceBuffer = null;
@@ -139,9 +135,18 @@
       } catch(e) {}
     }
 
+    function unlockAudio() {
+      // Unlock AudioContext on user gesture — required by browsers
+      try {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) { var ctx = new AudioContext(); ctx.resume(); }
+      } catch(e) {}
+      resumeAudio();
+    }
+
     function resumeAudio() {
       if (!audioInitialized) initAudio();
-      if (audioEl && audioEl.paused) audioEl.play().catch(function(){});
+      if (audioEl && audioEl.paused) audioEl.play().catch(function() {});
     }
 
     function resetAudio() {
@@ -152,8 +157,8 @@
     // ── Gamepad ────────────────────────────────────────────────────
     var gamepadToSNES = { 0:"b",1:"a",2:"y",3:"x",4:"l",5:"r",8:"select",9:"start",12:"up",13:"down",14:"left",15:"right" };
     var buttonMap = {
-      0:{id:"btn-a",color:"#ff5555",pressY:0.095}, 1:{id:"btn-b",color:"#44ff88",pressY:0.095},
-      2:{id:"btn-x",color:"#5588ff",pressY:0.095}, 3:{id:"btn-y",color:"#ffee44",pressY:0.095},
+      0:{id:"btn-a",color:"#ff5555",pressY:0.095},  1:{id:"btn-b",color:"#44ff88",pressY:0.095},
+      2:{id:"btn-x",color:"#5588ff",pressY:0.095},  3:{id:"btn-y",color:"#ffee44",pressY:0.095},
       4:{id:"btn-lb",color:"#8877ff",pressY:0.10},  5:{id:"btn-rb",color:"#8877ff",pressY:0.10},
       6:{id:"btn-lt",color:"#ff8844",pressY:0.14},  7:{id:"btn-rt",color:"#ff8844",pressY:0.14},
       8:{id:"btn-select",color:"#aaaaff",pressY:0.085}, 9:{id:"btn-start",color:"#aaaaff",pressY:0.085},
@@ -195,7 +200,7 @@
     function poll() {
       var gp = getBestGamepad();
       if (gp) {
-        if (!controllerConnected) { controllerConnected = true; resumeAudio(); }
+        if (!controllerConnected) { controllerConnected = true; unlockAudio(); }
         gp.buttons.forEach(function(btn, rawIndex) {
           var di = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
           setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
@@ -214,7 +219,7 @@
       requestAnimationFrame(poll);
     }
 
-    // ── WebSocket — sends ROM_FILE (filename) + ROM_CORE + ROM_ID (slug) ──
+    // ── WebSocket ──────────────────────────────────────────────────
     function connectToServer() {
       var sessionId = Math.random().toString(36).slice(2);
       var wsUrl = SNES_SERVER_WS
@@ -230,11 +235,11 @@
 
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
-        if (frame.type === "audio" && frame.data) { 
-  resumeAudio();  // ← add this line
-  playAudioChunk(frame.data); 
-  return; 
-}
+        if (frame.type === "audio" && frame.data) {
+          resumeAudio();
+          playAudioChunk(frame.data);
+          return;
+        }
         if (frame.type === "status") { set("status-label", "content", frame.message); return; }
         if (frame.type === "error")  { set("status-label", "content", "Error: " + frame.message); return; }
         if (frame.type === "completion") { logCompletion(); return; }
@@ -251,7 +256,7 @@
 
       socket.onclose = function() {
         gameActive = false; resetAudio();
-        set("screen", "src", "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SMW%20-%20Kaizo%20Mario%20World%201.png");
+        set("screen", "src", ROM_PREVIEW);
         set("status-label", "content", "");
         set("play-btn", "prompt", "Press E to Play " + ROM_TITLE);
       };
@@ -295,7 +300,7 @@
 
       var playBtn = document.getElementById("play-btn");
       if (playBtn) playBtn.addEventListener("interact", function() {
-        resumeAudio();
+        unlockAudio(); // ← unlock AudioContext on user gesture (press E)
         if (gameActive) closeGame(); else launchGame();
       });
 
