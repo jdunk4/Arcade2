@@ -3,48 +3,67 @@ set -e
 
 echo "=== Starting arcade2 server ==="
 
-# Clean up any stale Xvfb lock from previous deploy
+# Clean up stale Xvfb lock
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
 
-# Start Xvfb virtual display
+# Start Xvfb
 echo "Starting Xvfb..."
 Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-XVFB_PID=$!
 sleep 2
-echo "Xvfb started (pid $XVFB_PID)"
+echo "Xvfb started"
 
 # Start PulseAudio in system mode
 echo "Starting PulseAudio..."
-mkdir -p /tmp/pulse
+mkdir -p /tmp/pulse /run/pulse
 pulseaudio --system \
            --disallow-module-loading=false \
            --disallow-exit \
            --daemonize=true || true
 
-# Wait for PulseAudio socket to appear
+# Wait and find the actual socket path
 echo "Waiting for PulseAudio socket..."
+PULSE_SOCKET=""
 for i in $(seq 1 20); do
-  if pactl info > /dev/null 2>&1; then
-    echo "PulseAudio ready after ${i}s"
+  # Check both possible socket locations
+  if [ -S "/run/pulse/native" ]; then
+    PULSE_SOCKET="/run/pulse/native"
+    echo "Found PulseAudio socket at /run/pulse/native after ${i}s"
+    break
+  elif [ -S "/tmp/pulse/native" ]; then
+    PULSE_SOCKET="/tmp/pulse/native"
+    echo "Found PulseAudio socket at /tmp/pulse/native after ${i}s"
+    break
+  elif [ -S "/var/run/pulse/native" ]; then
+    PULSE_SOCKET="/var/run/pulse/native"
+    echo "Found PulseAudio socket at /var/run/pulse/native after ${i}s"
     break
   fi
+  echo "  waiting... (${i}s)"
   sleep 1
 done
 
-# Load null sink for Chrome audio output
+if [ -z "$PULSE_SOCKET" ]; then
+  echo "ERROR: PulseAudio socket not found after 20s"
+  echo "Searching for any pulse socket..."
+  find / -name "native" -path "*/pulse/*" 2>/dev/null || true
+  # Try running without audio
+  exec node server-b.js
+fi
+
+# Export correct socket path
+export PULSE_SERVER="unix:${PULSE_SOCKET}"
+echo "Using PULSE_SERVER=${PULSE_SERVER}"
+
+# Load null sink
 echo "Loading null sink..."
 pactl load-module module-null-sink sink_name=virtual_speaker \
-  sink_properties=device.description=VirtualSpeaker 2>/dev/null || \
-  echo "null sink may already be loaded, continuing..."
-pactl set-default-sink virtual_speaker 2>/dev/null || true
+  sink_properties=device.description=VirtualSpeaker || \
+  echo "null sink may already be loaded"
+pactl set-default-sink virtual_speaker || true
 
-# Log available sources so we can verify monitor name
-echo "=== PulseAudio sinks ==="
-pactl list short sinks || true
+# Verify sources
 echo "=== PulseAudio sources ==="
 pactl list short sources || true
 echo "=== PulseAudio ready ==="
 
-# Start Node server
-echo "Starting Node server..."
 exec node server-b.js
