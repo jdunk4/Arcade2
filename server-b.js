@@ -158,7 +158,9 @@ async function createSession(ws, romId, wallet) {
   var audioStream = null;
   try {
     console.log("[session] attempting audio capture...");
-    audioStream = await getStream(page, {
+      await page.bringToFront(); // Required for activeTab permission
+      await new Promise(function(r) { setTimeout(r, 500); });
+      audioStream = await getStream(page, {
       audio: true,
       video: false,
       mimeType: "audio/webm;codecs=opus",
