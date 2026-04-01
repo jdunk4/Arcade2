@@ -1,16 +1,9 @@
 <m-group>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       ARCADE CABINET
-  ════════════════════════════════════════════════════════════════ -->
-
   <!-- Cabinet Body — deep red -->
   <m-cube width="1.2" height="2.2" depth="0.8" y="1.1" color="#2a0a0a"></m-cube>
-
-  <!-- Screen Bezel -->
   <m-cube width="1.0" height="0.85" depth="0.05" y="1.75" z="0.43" color="#0f0f0f"></m-cube>
 
-  <!-- Screen — src replaced every frame with base64 JPEG from Puppeteer -->
   <m-image
     id="screen"
     src="https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png"
@@ -18,52 +11,28 @@
     y="1.75" z="0.46">
   </m-image>
 
-  <!-- Marquee Box -->
   <m-cube width="1.1" height="0.35" depth="0.3" y="2.4" z="0.25" color="#e8000d"></m-cube>
-  <m-label content="KAIZO MARIO WORLD" y="2.47" z="0.42" width="1.0" height="0.16" font-size="18" color="#ffffff" alignment="center"></m-label>
-  <m-label content="T. Takemoto | Expert | 4.5★" y="2.3" z="0.42" width="1.0" height="0.1" font-size="12" color="#ffcc00" alignment="center"></m-label>
-
-  <!-- Marquee Light Strips -->
+  <m-label content="KAIZO MARIO WORLD" y="2.47" z="0.42" width="1.0" height="0.16" font-size="8" color="#ffffff" alignment="center"></m-label>
+  <m-label content="T. Takemoto" y="2.3" z="0.42" width="1.0" height="0.1" font-size="8" color="#ffcc00" alignment="center"></m-label>
   <m-cube width="1.15" height="0.03" depth="0.1" y="2.62" z="0.3" color="#ffcc00"></m-cube>
   <m-cube width="1.15" height="0.03" depth="0.1" y="2.22" z="0.3" color="#ffcc00"></m-cube>
-
-  <!-- Side Panels -->
   <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="-0.625" color="#1a0505"></m-cube>
   <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="0.625" color="#1a0505"></m-cube>
-
-  <!-- Control Panel -->
   <m-cube width="1.1" height="0.15" depth="0.5" y="0.95" z="0.15" rx="-20" color="#200808"></m-cube>
-
-  <!-- Joystick -->
   <m-cylinder radius="0.05" height="0.02" y="1.06" z="0.1" x="-0.2" color="#1a0000"></m-cylinder>
   <m-sphere radius="0.06" y="1.1" z="0.1" x="-0.2" color="#cc0000"></m-sphere>
-
-  <!-- Buttons -->
   <m-sphere radius="0.045" y="1.07" z="0.05" x="0.1" color="#e8000d"></m-sphere>
   <m-sphere radius="0.045" y="1.07" z="0.05" x="0.22" color="#ffcc00"></m-sphere>
   <m-sphere radius="0.045" y="1.07" z="0.05" x="0.34" color="#0044ff"></m-sphere>
   <m-sphere radius="0.045" y="1.07" z="-0.05" x="0.22" color="#00aa44"></m-sphere>
-
-  <!-- Coin Slot -->
   <m-cube width="0.1" height="0.02" depth="0.02" y="1.45" z="0.42" color="#330000"></m-cube>
-
-  <!-- Speaker Grilles -->
   <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="-0.3" color="#150000"></m-cube>
   <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="0.3" color="#150000"></m-cube>
-
-  <!-- Floor Base -->
   <m-cube width="1.3" height="0.08" depth="0.9" y="0.04" color="#1a0505"></m-cube>
-
-  <!-- Difficulty Label -->
-  <m-label content="⚠ EXPERT | KAIZO" y="0.65" z="0.42" width="0.9" height="0.1" font-size="11" color="#ff4400" alignment="center"></m-label>
-
-  <!-- Completion Counter -->
+  <m-label content="EXPERT" y="0.65" z="0.42" width="0.9" height="0.1" font-size="" color="#ff4400" alignment="center"></m-label>
   <m-label id="completion-label" content="0 players completed" y="0.52" z="0.42" width="0.9" height="0.1" font-size="10" color="#aaaaff" alignment="center"></m-label>
-
-  <!-- Status label -->
   <m-label id="status-label" content="" y="0.38" z="0.42" width="0.85" height="0.12" font-size="11" color="#ffff00" alignment="center"></m-label>
 
-  <!-- Info Card -->
   <m-image
     id="info-card"
     src="https://jdunk4.github.io/ARCADE1/KMW1%20-%20Info%20Card.png"
@@ -73,52 +42,32 @@
     visible="false">
   </m-image>
 
-  <!-- Position Probe -->
   <m-position-probe range="4.0" id="probe"></m-position-probe>
-
-  <!-- Interaction -->
   <m-interaction id="play-btn" prompt="Press E to Play Kaizo Mario World" range="4.0" y="1.1"></m-interaction>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       3D CONTROLLER — floats in front of cabinet at waist height
-  ════════════════════════════════════════════════════════════════ -->
-
+  <!-- 3D Controller -->
   <m-group id="controller-root" y="0.9" z="0.85">
-
     <m-label content="🎮 CONTROLLER" y="0.32" font-size="12" color="#ffcc00" alignment="center"></m-label>
-
     <m-cube width="0.9" height="0.18" depth="0.42" color="#1a0505" rx="8"></m-cube>
     <m-cube x="-0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
     <m-cube x="0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
-
-    <!-- D-Pad -->
     <m-cube id="btn-dpad-up"    x="-0.3"  y="0.095" z="-0.04" width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-down"  x="-0.3"  y="0.095" z="0.06"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-left"  x="-0.36" y="0.095" z="0.01"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-right" x="-0.24" y="0.095" z="0.01"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
-
-    <!-- Face Buttons -->
     <m-sphere id="btn-a" x="0.36" y="0.11" z="0.0"   radius="0.038" color="#cc2222"></m-sphere>
     <m-sphere id="btn-b" x="0.30" y="0.11" z="0.06"  radius="0.038" color="#1aaa5c"></m-sphere>
     <m-sphere id="btn-x" x="0.3"  y="0.11" z="-0.06" radius="0.038" color="#2244cc"></m-sphere>
     <m-sphere id="btn-y" x="0.24" y="0.11" z="0.0"   radius="0.038" color="#ccaa00"></m-sphere>
-
-    <!-- Shoulders -->
     <m-cube id="btn-lb" x="-0.38" y="0.12" z="-0.16" width="0.2" height="0.04" depth="0.08" color="#2a2a4a"></m-cube>
     <m-cube id="btn-rb" x="0.38"  y="0.12" z="-0.16" width="0.2" height="0.04" depth="0.08" color="#2a2a4a"></m-cube>
     <m-cube id="btn-lt" x="-0.38" y="0.16" z="-0.22" width="0.2" height="0.05" depth="0.1"  color="#2a2a4a"></m-cube>
     <m-cube id="btn-rt" x="0.38"  y="0.16" z="-0.22" width="0.2" height="0.05" depth="0.1"  color="#2a2a4a"></m-cube>
-
-    <!-- Menu buttons -->
     <m-sphere id="btn-select" x="-0.1" y="0.1" z="-0.02" radius="0.025" color="#3a3a5c"></m-sphere>
     <m-sphere id="btn-start"  x="0.1"  y="0.1" z="-0.02" radius="0.025" color="#3a3a5c"></m-sphere>
-
-    <!-- Thumbsticks -->
     <m-sphere id="btn-ls" x="-0.18" y="0.1" z="0.06" radius="0.055" color="#2a2a4a"></m-sphere>
     <m-sphere id="btn-rs" x="0.18"  y="0.1" z="0.08" radius="0.055" color="#2a2a4a"></m-sphere>
-
     <m-label id="ctrl-status" content="Connect controller then press E" y="-0.28" font-size="9" color="#aaaaff" alignment="center"></m-label>
-
   </m-group>
 
   <script>
@@ -139,8 +88,61 @@
     var gameActive = false;
     var controllerConnected = false;
 
-    // ── Gamepad button index → SNES key name ─────────────────────────────
-    // Raw gamepad indices (before remap) → SNES input
+    // ── Web Audio API setup for streaming audio playback ──────────────────
+    var audioCtx = null;
+    var audioQueue = [];
+    var audioPlaying = false;
+    var nextAudioTime = 0;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioCtx;
+    }
+
+    // Decode a base64 WebM chunk and schedule it for playback
+    function playAudioChunk(base64Data) {
+      try {
+        var ctx = getAudioContext();
+
+        // Convert base64 to ArrayBuffer
+        var binary = atob(base64Data);
+        var buffer = new ArrayBuffer(binary.length);
+        var view = new Uint8Array(buffer);
+        for (var i = 0; i < binary.length; i++) {
+          view[i] = binary.charCodeAt(i);
+        }
+
+        // Decode and schedule playback
+        ctx.decodeAudioData(buffer, function(decoded) {
+          var source = ctx.createBufferSource();
+          source.buffer = decoded;
+          source.connect(ctx.destination);
+
+          var now = ctx.currentTime;
+          var startAt = Math.max(now, nextAudioTime);
+          source.start(startAt);
+          nextAudioTime = startAt + decoded.duration;
+        }, function(err) {
+          // Silently ignore decode errors — chunks may arrive out of order
+        });
+      } catch (e) {
+        // AudioContext may not be available in all MML contexts
+      }
+    }
+
+    // Resume audio context after user gesture (browser requirement)
+    function resumeAudio() {
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+      if (!audioCtx) {
+        getAudioContext();
+      }
+    }
+
+    // ── Controller setup ──────────────────────────────────────────────────
     var gamepadToSNES = {
       0: "b", 1: "a", 2: "y", 3: "x",
       4: "l", 5: "r",
@@ -148,7 +150,6 @@
       12: "up", 13: "down", 14: "left", 15: "right"
     };
 
-    // Display button config
     var buttonMap = {
       0:  { id: "btn-a",          color: "#ff5555", pressY: 0.095 },
       1:  { id: "btn-b",          color: "#44ff88", pressY: 0.095 },
@@ -182,7 +183,6 @@
       12: 0.095, 13: 0.095, 14: 0.095, 15: 0.095
     };
 
-    // Raw → display remap
     var remapIndex = {
       0: 1, 1: 0, 2: 3, 3: 2,
       4: 4, 5: 5, 6: 6, 7: 7,
@@ -202,14 +202,12 @@
       if (!map) return;
       var el = document.getElementById(map.id);
       if (!el) return;
-
       if (pressed && !buttonStates[displayIndex]) {
         buttonStates[displayIndex] = true;
         el.setAttribute("color", map.color);
         el.setAttribute("y", map.pressY);
         var snesKey = gamepadToSNES[rawIndex];
         if (snesKey) sendGameInput(snesKey, "keyDown");
-
       } else if (!pressed && buttonStates[displayIndex]) {
         buttonStates[displayIndex] = false;
         el.setAttribute("color", defaultColors[displayIndex] || "#3a3a5c");
@@ -236,15 +234,13 @@
         if (!controllerConnected) {
           controllerConnected = true;
           ctrlStatus.setAttribute("content", "Controller ready! Press E to start.");
+          resumeAudio(); // User gesture — resume AudioContext
         }
-
         gp.buttons.forEach(function(btn, rawIndex) {
           var displayIndex = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
           var pressed = btn.pressed || btn.value > 0.5;
           setButtonPressed(rawIndex, displayIndex, pressed);
         });
-
-        // Left stick → directional input
         var axisX = gp.axes[0] || 0;
         var axisY = gp.axes[1] || 0;
         var threshold = 0.5;
@@ -252,8 +248,6 @@
         var rs = document.getElementById("btn-rs");
         if (ls) { ls.setAttribute("x", -0.18 + axisX * 0.04); ls.setAttribute("z", 0.06 + axisY * 0.04); }
         if (rs) { rs.setAttribute("x", 0.18 + (gp.axes[2]||0) * 0.04); rs.setAttribute("z", 0.08 + (gp.axes[3]||0) * 0.04); }
-
-        // Stick to SNES directional — only if D-pad not held
         if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
           if (axisX < -threshold) sendGameInput("left", "keyDown");
           else if (axisX > threshold) sendGameInput("right", "keyDown");
@@ -267,11 +261,11 @@
     }
 
     poll();
-
     window.addEventListener("gamepadconnected", function() { poll(); });
 
-    // ── Arcade logic ──────────────────────────────────────────────────────
+    // ── Arcade interaction ────────────────────────────────────────────────
     playBtn.addEventListener("interact", function() {
+      resumeAudio(); // E press = user gesture, resume AudioContext
       if (gameActive) { closeGame(); } else { launchGame(); }
     });
 
@@ -285,27 +279,45 @@
 
     function connectToServer() {
       socket = new WebSocket(SNES_SERVER_WS + "?rom=" + ROM_ID + "&wallet=" + WALLET);
+
       socket.onopen = function() {
         ctrlStatus.setAttribute("content",
           controllerConnected ? "Controller ready — play!" : "No controller detected");
       };
+
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
+
+        // Audio chunk — play it
+        if (frame.type === "audio" && frame.data) {
+          playAudioChunk(frame.data);
+          return;
+        }
+
         if (frame.type === "status") { statusLabel.setAttribute("content", frame.message); return; }
         if (frame.type === "error")  { statusLabel.setAttribute("content", "Error: " + frame.message); return; }
+
         if (frame.image) {
           screen.setAttribute("src", frame.image);
           statusLabel.setAttribute("content", "");
-          if (!gameActive) { gameActive = true; playBtn.setAttribute("prompt", "Press E to Close"); }
+          if (!gameActive) {
+            gameActive = true;
+            playBtn.setAttribute("prompt", "Press E to Close");
+            resumeAudio();
+          }
         }
+
         if (frame.type === "completion") { logCompletion(); }
       };
+
       socket.onclose = function() {
         gameActive = false;
+        nextAudioTime = 0; // Reset audio timeline
         screen.setAttribute("src", "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png");
         statusLabel.setAttribute("content", "");
         playBtn.setAttribute("prompt", "Press E to Play Kaizo Mario World");
       };
+
       socket.onerror = function() {
         statusLabel.setAttribute("content", "Connection failed");
         socket.close();
@@ -315,12 +327,14 @@
     function launchGame() {
       statusLabel.setAttribute("content", "Launching emulator...");
       playBtn.setAttribute("prompt", "Launching...");
+      nextAudioTime = 0;
       connectToServer();
     }
 
     function closeGame() {
       if (socket) socket.close();
       gameActive = false;
+      nextAudioTime = 0;
     }
 
     function logCompletion() {
