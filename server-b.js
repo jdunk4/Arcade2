@@ -124,7 +124,6 @@ async function createSession(ws, romId, wallet) {
     return;
   }
 
-  // Wait for emulator to settle then find and click Play
   await new Promise(function(r) { setTimeout(r, 8000); });
 
   var allClickable = await page.evaluate(function() {
@@ -152,7 +151,6 @@ async function createSession(ws, romId, wallet) {
   await page.mouse.click(VIEWPORT_W / 2, VIEWPORT_H / 2);
   await new Promise(function(r) { setTimeout(r, 500); });
 
-  // ── Capture audio from PulseAudio via ffmpeg ──────────────────────────
   var ffmpegProc = null;
   try {
     console.log("[session] starting ffmpeg audio capture from PulseAudio...");
@@ -177,9 +175,11 @@ async function createSession(ws, romId, wallet) {
       }
     });
 
-    // Log ALL ffmpeg output so we can see exactly what's happening
     ffmpegProc.stderr.on("data", function(d) {
-      console.log("[ffmpeg] " + d.toString().trim());
+      var line = d.toString().trim();
+      if (line.includes("Stream") || line.includes("Error") || line.includes("error")) {
+        console.log("[ffmpeg] " + line);
+      }
     });
 
     ffmpegProc.on("close", function(code) {
@@ -196,7 +196,6 @@ async function createSession(ws, romId, wallet) {
     console.warn("[session] ffmpeg audio setup failed: " + e.message);
   }
 
-  // ── Video frame loop ──────────────────────────────────────────────────
   console.log("[session] starting frame loop at " + TARGET_FPS + "fps");
 
   var frameInterval = setInterval(async function() {
