@@ -76,52 +76,45 @@
     var ROM_ID         = "kaizo-mario-world-1";
     var WALLET         = "anonymous";
 
-    // ── Elements — looked up lazily to avoid null errors during boot ──────
-    function el(id) { return document.getElementById(id); }
+    // ── NO cached element variables at the top.
+    // All DOM lookups happen at call time via set() so elements
+    // are guaranteed to exist by then.
+    function set(id, attr, val) {
+      var e = document.getElementById(id);
+      if (e) e.setAttribute(attr, val);
+    }
 
-    var socket     = null;
-    var gameActive = false;
+    var socket             = null;
+    var gameActive         = false;
     var controllerConnected = false;
+    var audioCtx           = null;
+    var nextAudioTime      = 0;
 
-    // ── Web Audio API — only created after a user gesture ─────────────────
-    var audioCtx      = null;
-    var nextAudioTime = 0;
-
+    // ── Audio — only initialized after a real user gesture ────────────────
     function resumeAudio() {
-      // Only create AudioContext after a real user gesture (E press / button press)
-      // This satisfies browser autoplay policy
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-        if (audioCtx.state === "suspended") {
-          audioCtx.resume();
-        }
-      } catch (e) {
-        // AudioContext not available in this context — silently ignore
-      }
+        if (audioCtx.state === "suspended") audioCtx.resume();
+      } catch (e) {}
     }
 
     function playAudioChunk(base64Data) {
-      if (!audioCtx) return; // Not yet initialized — skip until user gesture
+      if (!audioCtx) return;
       try {
         var binary = atob(base64Data);
-        var buffer = new ArrayBuffer(binary.length);
-        var view = new Uint8Array(buffer);
-        for (var i = 0; i < binary.length; i++) {
-          view[i] = binary.charCodeAt(i);
-        }
-        audioCtx.decodeAudioData(buffer, function(decoded) {
-          var source = audioCtx.createBufferSource();
-          source.buffer = decoded;
-          source.connect(audioCtx.destination);
-          var now = audioCtx.currentTime;
-          var startAt = Math.max(now, nextAudioTime);
-          source.start(startAt);
+        var buf = new ArrayBuffer(binary.length);
+        var view = new Uint8Array(buf);
+        for (var i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+        audioCtx.decodeAudioData(buf, function(decoded) {
+          var src = audioCtx.createBufferSource();
+          src.buffer = decoded;
+          src.connect(audioCtx.destination);
+          var startAt = Math.max(audioCtx.currentTime, nextAudioTime);
+          src.start(startAt);
           nextAudioTime = startAt + decoded.duration;
-        }, function() {
-          // Decode error — ignore, chunks may arrive incomplete
-        });
+        }, function() {});
       } catch (e) {}
     }
 
@@ -183,7 +176,7 @@
     function setButtonPressed(rawIndex, displayIndex, pressed) {
       var map = buttonMap[displayIndex];
       if (!map) return;
-      var elem = el(map.id);
+      var elem = document.getElementById(map.id);
       if (!elem) return;
       if (pressed && !buttonStates[displayIndex]) {
         buttonStates[displayIndex] = true;
@@ -216,9 +209,7 @@
       if (gp) {
         if (!controllerConnected) {
           controllerConnected = true;
-          // FIX 1: null guard — ctrlStatus may not exist yet during boot
-          var cs = el("ctrl-status");
-          if (cs) cs.setAttribute("content", "Controller ready! Press E to start.");
+          set("ctrl-status", "content", "Controller ready! Press E to start.");
           resumeAudio();
         }
         gp.buttons.forEach(function(btn, rawIndex) {
@@ -229,8 +220,8 @@
         var axisX = gp.axes[0] || 0;
         var axisY = gp.axes[1] || 0;
         var threshold = 0.5;
-        var ls = el("btn-ls");
-        var rs = el("btn-rs");
+        var ls = document.getElementById("btn-ls");
+        var rs = document.getElementById("btn-rs");
         if (ls) { ls.setAttribute("x", -0.18 + axisX * 0.04); ls.setAttribute("z", 0.06 + axisY * 0.04); }
         if (rs) { rs.setAttribute("x", 0.18 + (gp.axes[2]||0) * 0.04); rs.setAttribute("z", 0.08 + (gp.axes[3]||0) * 0.04); }
         if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
@@ -245,60 +236,56 @@
       requestAnimationFrame(poll);
     }
 
-    poll();
-    window.addEventListener("gamepadconnected", function() { poll(); });
+    // ── Defer everything that touches the DOM until elements exist ────────
+    // MML renders elements asynchronously — wait 500ms before wiring events
+    setTimeout(function() {
 
-    // ── Arcade interaction ────────────────────────────────────────────────
-    el("play-btn").addEventListener("interact", function() {
-      resumeAudio(); // FIX 2: AudioContext created here on first E press (user gesture)
-      if (gameActive) { closeGame(); } else { launchGame(); }
-    });
+      poll();
+      window.addEventListener("gamepadconnected", function() { poll(); });
 
-    el("probe").addEventListener("positionenter", function() {
-      var c = el("info-card");
-      if (c) c.setAttribute("visible", "true");
-    });
-    el("probe").addEventListener("positionleave", function() {
-      var c = el("info-card");
-      if (c) c.setAttribute("visible", "false");
-      if (gameActive) closeGame();
-    });
+      var playBtn = document.getElementById("play-btn");
+      if (playBtn) {
+        playBtn.addEventListener("interact", function() {
+          resumeAudio();
+          if (gameActive) { closeGame(); } else { launchGame(); }
+        });
+      }
 
+      var probe = document.getElementById("probe");
+      if (probe) {
+        probe.addEventListener("positionenter", function() {
+          set("info-card", "visible", "true");
+        });
+        probe.addEventListener("positionleave", function() {
+          set("info-card", "visible", "false");
+          if (gameActive) closeGame();
+        });
+      }
+
+      refreshCompletionCount();
+
+    }, 500);
+
+    // ── WebSocket ─────────────────────────────────────────────────────────
     function connectToServer() {
       socket = new WebSocket(SNES_SERVER_WS + "?rom=" + ROM_ID + "&wallet=" + WALLET);
 
       socket.onopen = function() {
-        var cs = el("ctrl-status");
-        if (cs) cs.setAttribute("content",
+        set("ctrl-status", "content",
           controllerConnected ? "Controller ready — play!" : "No controller detected");
       };
 
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
-
-        if (frame.type === "audio" && frame.data) {
-          playAudioChunk(frame.data);
-          return;
-        }
-        if (frame.type === "status") {
-          var sl = el("status-label");
-          if (sl) sl.setAttribute("content", frame.message);
-          return;
-        }
-        if (frame.type === "error") {
-          var sl = el("status-label");
-          if (sl) sl.setAttribute("content", "Error: " + frame.message);
-          return;
-        }
+        if (frame.type === "audio" && frame.data) { playAudioChunk(frame.data); return; }
+        if (frame.type === "status") { set("status-label", "content", frame.message); return; }
+        if (frame.type === "error")  { set("status-label", "content", "Error: " + frame.message); return; }
         if (frame.image) {
-          var sc = el("screen");
-          if (sc) sc.setAttribute("src", frame.image);
-          var sl = el("status-label");
-          if (sl) sl.setAttribute("content", "");
+          set("screen", "src", frame.image);
+          set("status-label", "content", "");
           if (!gameActive) {
             gameActive = true;
-            var pb = el("play-btn");
-            if (pb) pb.setAttribute("prompt", "Press E to Close");
+            set("play-btn", "prompt", "Press E to Close");
             resumeAudio();
           }
         }
@@ -308,26 +295,20 @@
       socket.onclose = function() {
         gameActive = false;
         nextAudioTime = 0;
-        var sc = el("screen");
-        if (sc) sc.setAttribute("src", "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png");
-        var sl = el("status-label");
-        if (sl) sl.setAttribute("content", "");
-        var pb = el("play-btn");
-        if (pb) pb.setAttribute("prompt", "Press E to Play Kaizo Mario World");
+        set("screen", "src", "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png");
+        set("status-label", "content", "");
+        set("play-btn", "prompt", "Press E to Play Kaizo Mario World");
       };
 
       socket.onerror = function() {
-        var sl = el("status-label");
-        if (sl) sl.setAttribute("content", "Connection failed");
+        set("status-label", "content", "Connection failed");
         socket.close();
       };
     }
 
     function launchGame() {
-      var sl = el("status-label");
-      if (sl) sl.setAttribute("content", "Launching emulator...");
-      var pb = el("play-btn");
-      if (pb) pb.setAttribute("prompt", "Launching...");
+      set("status-label", "content", "Launching emulator...");
+      set("play-btn", "prompt", "Launching...");
       nextAudioTime = 0;
       connectToServer();
     }
@@ -350,12 +331,10 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var count = data.count || 0;
-          var cl = el("completion-label");
-          if (cl) cl.setAttribute("content", count + " player" + (count !== 1 ? "s" : "") + " completed");
+          set("completion-label", "content", count + " player" + (count !== 1 ? "s" : "") + " completed");
         }).catch(function() {});
     }
 
-    refreshCompletionCount();
   </script>
 
 </m-group>
