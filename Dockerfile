@@ -1,5 +1,4 @@
 FROM node:18-slim
-
 RUN apt-get update && apt-get install -y \
     chromium \
     libgl1-mesa-dri \
@@ -30,21 +29,14 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-
 COPY package.json .
 RUN npm install
-
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV DISPLAY=:99
 ENV PULSE_SERVER=unix:/tmp/pulse/native
-
 COPY . .
-
 RUN chmod +x /app/start.sh
-
 EXPOSE 8081
-
 CMD ["/app/start.sh"]
