@@ -3,6 +3,12 @@ set -e
 
 echo "=== Starting arcade2 server ==="
 
+# ── Force software rendering — no GPU in Railway containers ───────────
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=softpipe
+export SDL_VIDEODRIVER=x11
+export SDL_AUDIODRIVER=pulse
+
 # ── Virtual display ────────────────────────────────────────────────────
 echo "Starting Xvfb..."
 Xvfb :99 -screen 0 1280x720x24 &
@@ -10,12 +16,11 @@ export DISPLAY=:99
 sleep 1
 echo "Xvfb started"
 
-# ── PulseAudio (virtual speaker so emulators have audio output) ────────
+# ── PulseAudio ────────────────────────────────────────────────────────
 echo "Starting PulseAudio as user daemon..."
 pulseaudio --start --log-target=stderr --exit-idle-time=-1 2>&1 || true
 sleep 1
 
-# Wait for PulseAudio socket
 for i in $(seq 1 10); do
     if pactl info > /dev/null 2>&1; then
         echo "PulseAudio socket ready after ${i}s"
