@@ -6,43 +6,43 @@
 
   <m-image
     id="screen"
-    src="https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png"
+    src="https://jdunk4.github.io/Gamer/SMW%20-%20Kaizo%20Mario%20World%201.png"
     width="0.88" height="0.77"
     y="1.75" z="0.46">
   </m-image>
 
   <m-cube width="1.1" height="0.35" depth="0.3" y="2.4" z="0.25" color="#e8000d"></m-cube>
-  <m-label id="marquee-title" content="ARCADE" y="2.47" z="0.42" width="1.0" height="0.16" font-size="8" color="#ffffff" alignment="center"></m-label>
-  <m-label id="marquee-author" content="" y="2.3" z="0.42" width="1.0" height="0.1" font-size="8" color="#ffcc00" alignment="center"></m-label>
+  <m-label content="KAIZO MARIO WORLD" y="2.47" z="0.42" width="1.0" height="0.16" font-size="8" color="#ffffff" alignment="center"></m-label>
+  <m-label content="T. Takemoto" y="2.3" z="0.42" width="1.0" height="0.1" font-size="8" color="#ffcc00" alignment="center"></m-label>
 
   <m-cube width="1.15" height="0.03" depth="0.1" y="2.62" z="0.3" color="#ffcc00"></m-cube>
   <m-cube width="1.15" height="0.03" depth="0.1" y="2.22" z="0.3" color="#ffcc00"></m-cube>
 
   <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="-0.625" color="#1a0505"></m-cube>
-  <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="0.625" color="#1a0505"></m-cube>
+  <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="0.625"  color="#1a0505"></m-cube>
   <m-cube width="1.1" height="0.15" depth="0.5" y="0.95" z="0.15" rx="-20" color="#200808"></m-cube>
 
   <!-- Joystick + buttons -->
   <m-cylinder radius="0.05" height="0.02" y="1.06" z="0.1" x="-0.2" color="#1a0000"></m-cylinder>
-  <m-sphere radius="0.06" y="1.1" z="0.1" x="-0.2" color="#cc0000"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.1" color="#e8000d"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.22" color="#ffcc00"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.34" color="#0044ff"></m-sphere>
+  <m-sphere radius="0.06"  y="1.1"  z="0.1"  x="-0.2"  color="#cc0000"></m-sphere>
+  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.1"   color="#e8000d"></m-sphere>
+  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.22"  color="#ffcc00"></m-sphere>
+  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.34"  color="#0044ff"></m-sphere>
   <m-sphere radius="0.045" y="1.07" z="-0.05" x="0.22" color="#00aa44"></m-sphere>
-  <m-cube width="0.1" height="0.02" depth="0.02" y="1.45" z="0.42" color="#330000"></m-cube>
-  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="-0.3" color="#150000"></m-cube>
-  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="0.3" color="#150000"></m-cube>
-  <m-cube width="1.3" height="0.08" depth="0.9" y="0.04" color="#1a0505"></m-cube>
+  <m-cube width="0.1"  height="0.02" depth="0.02" y="1.45" z="0.42"             color="#330000"></m-cube>
+  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3"  z="0.42" x="-0.3"   color="#150000"></m-cube>
+  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3"  z="0.42" x="0.3"    color="#150000"></m-cube>
+  <m-cube width="1.3"  height="0.08" depth="0.9"  y="0.04"                      color="#1a0505"></m-cube>
 
   <!-- Status labels -->
-  <m-label id="difficulty-label" content="" y="0.65" z="0.42" width="0.9" height="0.1" font-size="10" color="#ff4400" alignment="center"></m-label>
+  <m-label content="EXPERT" y="0.65" z="0.42" width="0.9" height="0.1" font-size="10" color="#ff4400" alignment="center"></m-label>
   <m-label id="completion-label" content="0 players completed" y="0.52" z="0.42" width="0.9" height="0.1" font-size="10" color="#aaaaff" alignment="center"></m-label>
-  <m-label id="status-label" content="" y="0.38" z="0.42" width="0.85" height="0.12" font-size="11" color="#ffff00" alignment="center"></m-label>
+  <m-label id="status-label"     content=""                    y="0.38" z="0.42" width="0.85" height="0.12" font-size="11" color="#ffff00" alignment="center"></m-label>
 
-  <!-- Info card (shown on proximity) -->
+  <!-- Info card -->
   <m-image
     id="info-card"
-    src=""
+    src="https://jdunk4.github.io/Gamer/kaizomarioworld1-info-card.png"
     width="1.4" height="1.0"
     x="1.4" y="1.5" z="0.46"
     ry="-15"
@@ -50,13 +50,13 @@
   </m-image>
 
   <m-position-probe range="4.0" id="probe"></m-position-probe>
-  <m-interaction id="play-btn" prompt="Press E to Play" range="4.0" y="1.1"></m-interaction>
+  <m-interaction id="play-btn" prompt="Press E to Play Kaizo Mario World" range="4.0" y="1.1"></m-interaction>
 
   <!-- 3D Controller -->
   <m-group id="controller-root" y="0.9" z="0.85">
     <m-cube width="0.9" height="0.18" depth="0.42" color="#1a0505" rx="8"></m-cube>
     <m-cube x="-0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
-    <m-cube x="0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
+    <m-cube x="0.38"  y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
     <m-cube id="btn-dpad-up"    x="-0.3"  y="0.095" z="-0.04" width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-down"  x="-0.3"  y="0.095" z="0.06"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-left"  x="-0.36" y="0.095" z="0.01"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
@@ -78,28 +78,25 @@
   <script>
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // CONFIG — change these 6 vars for each cabinet. Nothing else.
+    // CONFIG — only change these vars for each new cabinet
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    var ROM_FILE       = "smb3mix-rev2B-prg0.nes";        // filename in /ROM folder
-    var ROM_CORE       = "nes";                            // "nes" or "snes"
-    var ROM_ID         = "smb3mix-rev2b";                  // slug for saves & leaderboard
-    var ROM_TITLE      = "SMB3 Mix";                       // shown on marquee
-    var ROM_AUTHOR     = "";                               // shown under title (optional)
-    var ROM_DIFFICULTY = "Intermediate";                   // shown on cabinet
-    var ROM_PREVIEW    = "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png"; // idle screen image
-    var ROM_INFO_CARD  = "";                               // URL to info card PNG (optional)
+    var ROM_FILE = "Kaizo Mario (English).sfc";   // exact filename in /ROM folder
+    var ROM_CORE = "snes";                         // "snes" for SMW hacks
+    var ROM_ID   = "kaizo-mario-world-1";          // slug for leaderboard & saves
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // SERVERS — same for all cabinets
+    // SERVERS — same for every cabinet, never change these
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    var SNES_SERVER_WS  = "wss://arcade2-production.up.railway.app";
-    var BACKEND_SERVER  = "https://gamer-production.up.railway.app";
-    var WALLET          = "anonymous"; // overridden by MML world URL param if available
+    var SNES_SERVER_WS = "wss://arcade2-production.up.railway.app";
+    var BACKEND_SERVER = "https://gamer-production.up.railway.app";
+    var WALLET         = "anonymous";
+
+    var ROM_PREVIEW = "https://jdunk4.github.io/Gamer/SMW%20-%20Kaizo%20Mario%20World%201.png";
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // INIT — apply config to cabinet elements
+    // HELPERS
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     function set(id, attr, val) {
@@ -107,31 +104,19 @@
       if (e) e.setAttribute(attr, val);
     }
 
-    function applyConfig() {
-      set("marquee-title",    "content", ROM_TITLE.toUpperCase());
-      set("marquee-author",   "content", ROM_AUTHOR);
-      set("difficulty-label", "content", ROM_DIFFICULTY.toUpperCase());
-      set("play-btn",         "prompt",  "Press E to Play " + ROM_TITLE);
-      set("screen",           "src",     ROM_PREVIEW);
-      if (ROM_INFO_CARD) {
-        set("info-card", "src",     ROM_INFO_CARD);
-        set("info-card", "visible", "false");
-      }
-    }
-
-    var socket               = null;
-    var gameActive           = false;
-    var controllerConnected  = false;
+    var socket              = null;
+    var gameActive          = false;
+    var controllerConnected = false;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // AUDIO — MediaSource streaming (WebM/Opus)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    var audioEl         = null;
-    var mediaSource     = null;
-    var sourceBuffer    = null;
-    var audioChunkQueue = [];
-    var sbReady         = false;
+    var audioEl          = null;
+    var mediaSource      = null;
+    var sourceBuffer     = null;
+    var audioChunkQueue  = [];
+    var sbReady          = false;
     var audioInitialized = false;
 
     function initAudio() {
@@ -139,10 +124,10 @@
       audioInitialized = true;
       try {
         if (!window.MediaSource) { console.log("[audio] MediaSource not supported"); return; }
-        audioEl     = new Audio();
+        audioEl          = new Audio();
         audioEl.autoplay = true;
-        mediaSource = new MediaSource();
-        audioEl.src = URL.createObjectURL(mediaSource);
+        mediaSource      = new MediaSource();
+        audioEl.src      = URL.createObjectURL(mediaSource);
         mediaSource.addEventListener("sourceopen", function () {
           try {
             sourceBuffer      = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
@@ -232,9 +217,9 @@
     };
 
     var defaultY = {
-      0: 0.11, 1: 0.11, 2: 0.11, 3: 0.11,
-      4: 0.12, 5: 0.12, 6: 0.16, 7: 0.16,
-      8: 0.1,  9: 0.1,  10: 0.1, 11: 0.1,
+      0: 0.11, 1: 0.11, 2: 0.11,  3: 0.11,
+      4: 0.12, 5: 0.12, 6: 0.16,  7: 0.16,
+      8: 0.1,  9: 0.1,  10: 0.1,  11: 0.1,
       12: 0.095, 13: 0.095, 14: 0.095, 15: 0.095
     };
 
@@ -262,14 +247,14 @@
         buttonStates[displayIndex] = true;
         elem.setAttribute("color", map.color);
         elem.setAttribute("y", map.pressY);
-        var snesKey = gamepadToSNES[rawIndex];
-        if (snesKey) sendGameInput(snesKey, "keyDown");
+        var k = gamepadToSNES[rawIndex];
+        if (k) sendGameInput(k, "keyDown");
       } else if (!pressed && buttonStates[displayIndex]) {
         buttonStates[displayIndex] = false;
         elem.setAttribute("color", defaultColors[displayIndex] || "#3a3a5c");
         elem.setAttribute("y", defaultY[displayIndex]);
-        var snesKey = gamepadToSNES[rawIndex];
-        if (snesKey) sendGameInput(snesKey, "keyUp");
+        var k = gamepadToSNES[rawIndex];
+        if (k) sendGameInput(k, "keyUp");
       }
     }
 
@@ -290,25 +275,25 @@
           resumeAudio();
         }
         gp.buttons.forEach(function (btn, rawIndex) {
-          var displayIndex = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
-          setButtonPressed(rawIndex, displayIndex, btn.pressed || btn.value > 0.5);
+          var di = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
+          setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
         });
 
         var axisX = gp.axes[0] || 0;
         var axisY = gp.axes[1] || 0;
-        var threshold = 0.5;
-        var ls = document.getElementById("btn-ls");
-        var rs = document.getElementById("btn-rs");
+        var T     = 0.5;
+        var ls    = document.getElementById("btn-ls");
+        var rs    = document.getElementById("btn-rs");
         if (ls) { ls.setAttribute("x", -0.18 + axisX * 0.04); ls.setAttribute("z", 0.06 + axisY * 0.04); }
-        if (rs) { rs.setAttribute("x", 0.18 + (gp.axes[2] || 0) * 0.04); rs.setAttribute("z", 0.08 + (gp.axes[3] || 0) * 0.04); }
+        if (rs) { rs.setAttribute("x",  0.18 + (gp.axes[2] || 0) * 0.04); rs.setAttribute("z", 0.08 + (gp.axes[3] || 0) * 0.04); }
 
         if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
-          if      (axisX < -threshold) sendGameInput("left",  "keyDown");
-          else if (axisX >  threshold) sendGameInput("right", "keyDown");
+          if      (axisX < -T) sendGameInput("left",  "keyDown");
+          else if (axisX >  T) sendGameInput("right", "keyDown");
           else { sendGameInput("left", "keyUp"); sendGameInput("right", "keyUp"); }
 
-          if      (axisY < -threshold) sendGameInput("up",   "keyDown");
-          else if (axisY >  threshold) sendGameInput("down", "keyDown");
+          if      (axisY < -T) sendGameInput("up",   "keyDown");
+          else if (axisY >  T) sendGameInput("down", "keyDown");
           else { sendGameInput("up", "keyUp"); sendGameInput("down", "keyUp"); }
         }
       }
@@ -316,7 +301,7 @@
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // WEBSOCKET — connects with ROM info so server knows what to boot
+    // WEBSOCKET
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     function connectToServer() {
@@ -366,9 +351,9 @@
       socket.onclose = function () {
         gameActive = false;
         resetAudio();
-        set("screen",    "src",     ROM_PREVIEW);
+        set("screen",       "src",     ROM_PREVIEW);
         set("status-label", "content", "");
-        set("play-btn",  "prompt",  "Press E to Play " + ROM_TITLE);
+        set("play-btn",     "prompt",  "Press E to Play Kaizo Mario World");
       };
 
       socket.onerror = function () {
@@ -415,9 +400,7 @@
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     setTimeout(function () {
-      applyConfig();
       poll();
-
       window.addEventListener("gamepadconnected", function () { poll(); });
 
       var playBtn = document.getElementById("play-btn");
@@ -431,7 +414,7 @@
       var probe = document.getElementById("probe");
       if (probe) {
         probe.addEventListener("positionenter", function () {
-          if (ROM_INFO_CARD) set("info-card", "visible", "true");
+          set("info-card", "visible", "true");
         });
         probe.addEventListener("positionleave", function () {
           set("info-card", "visible", "false");
