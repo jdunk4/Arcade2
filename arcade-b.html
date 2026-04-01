@@ -76,46 +76,103 @@
     var ROM_ID         = "kaizo-mario-world-1";
     var WALLET         = "anonymous";
 
-    // ── NO cached element variables at the top.
-    // All DOM lookups happen at call time via set() so elements
-    // are guaranteed to exist by then.
+    // Safe setAttribute helper — looks up element fresh each call
     function set(id, attr, val) {
       var e = document.getElementById(id);
       if (e) e.setAttribute(attr, val);
     }
 
-    var socket             = null;
-    var gameActive         = false;
+    var socket              = null;
+    var gameActive          = false;
     var controllerConnected = false;
-    var audioCtx           = null;
-    var nextAudioTime      = 0;
 
-    // ── Audio — only initialized after a real user gesture ────────────────
-    function resumeAudio() {
+    // ── MediaSource Audio Player ──────────────────────────────────────────
+    // WebM from ffmpeg must be streamed via MediaSource, not decodeAudioData,
+    // because the WebM header is only in the first chunk.
+    var audioEl          = null;
+    var mediaSource      = null;
+    var sourceBuffer     = null;
+    var audioChunkQueue  = [];
+    var sbReady          = false;
+    var audioInitialized = false;
+
+    function initAudio() {
+      if (audioInitialized) return;
+      audioInitialized = true;
       try {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!window.MediaSource) {
+          console.log("[audio] MediaSource not supported");
+          return;
         }
-        if (audioCtx.state === "suspended") audioCtx.resume();
-      } catch (e) {}
+        audioEl = new Audio();
+        audioEl.autoplay = true;
+        mediaSource = new MediaSource();
+        audioEl.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener("sourceopen", function() {
+          try {
+            sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+            sourceBuffer.mode = "sequence";
+            sbReady = true;
+            console.log("[audio] MediaSource ready");
+            flushAudioQueue();
+          } catch (e) {
+            console.log("[audio] sourceBuffer error: " + e.message);
+          }
+        });
+
+        audioEl.play().catch(function(e) {
+          console.log("[audio] play blocked: " + e.message);
+        });
+
+      } catch (e) {
+        console.log("[audio] init failed: " + e.message);
+      }
+    }
+
+    function flushAudioQueue() {
+      if (!sbReady || !sourceBuffer || sourceBuffer.updating) return;
+      if (audioChunkQueue.length === 0) return;
+      var chunk = audioChunkQueue.shift();
+      try {
+        sourceBuffer.appendBuffer(chunk);
+      } catch (e) {
+        console.log("[audio] appendBuffer error: " + e.message);
+        audioChunkQueue = [];
+      }
+      sourceBuffer.addEventListener("updateend", function onUpdate() {
+        sourceBuffer.removeEventListener("updateend", onUpdate);
+        flushAudioQueue();
+      });
     }
 
     function playAudioChunk(base64Data) {
-      if (!audioCtx) return;
+      if (!audioEl || !mediaSource) return;
       try {
         var binary = atob(base64Data);
-        var buf = new ArrayBuffer(binary.length);
-        var view = new Uint8Array(buf);
-        for (var i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
-        audioCtx.decodeAudioData(buf, function(decoded) {
-          var src = audioCtx.createBufferSource();
-          src.buffer = decoded;
-          src.connect(audioCtx.destination);
-          var startAt = Math.max(audioCtx.currentTime, nextAudioTime);
-          src.start(startAt);
-          nextAudioTime = startAt + decoded.duration;
-        }, function() {});
+        var buf = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+        audioChunkQueue.push(buf.buffer);
+        flushAudioQueue();
       } catch (e) {}
+    }
+
+    function resumeAudio() {
+      // Initialize on first user gesture
+      if (!audioInitialized) initAudio();
+      if (audioEl && audioEl.paused) {
+        audioEl.play().catch(function() {});
+      }
+    }
+
+    function resetAudio() {
+      // Reset for next game session
+      audioChunkQueue = [];
+      sbReady = false;
+      audioInitialized = false;
+      audioEl = null;
+      mediaSource = null;
+      sourceBuffer = null;
     }
 
     // ── Controller ────────────────────────────────────────────────────────
@@ -236,8 +293,7 @@
       requestAnimationFrame(poll);
     }
 
-    // ── Defer everything that touches the DOM until elements exist ────────
-    // MML renders elements asynchronously — wait 500ms before wiring events
+    // ── Defer DOM-touching code until MML has rendered ────────────────────
     setTimeout(function() {
 
       poll();
@@ -277,9 +333,15 @@
 
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
-        if (frame.type === "audio" && frame.data) { playAudioChunk(frame.data); return; }
+
+        // Audio chunk — feed to MediaSource
+        if (frame.type === "audio" && frame.data) {
+          playAudioChunk(frame.data);
+          return;
+        }
         if (frame.type === "status") { set("status-label", "content", frame.message); return; }
         if (frame.type === "error")  { set("status-label", "content", "Error: " + frame.message); return; }
+
         if (frame.image) {
           set("screen", "src", frame.image);
           set("status-label", "content", "");
@@ -294,7 +356,7 @@
 
       socket.onclose = function() {
         gameActive = false;
-        nextAudioTime = 0;
+        resetAudio();
         set("screen", "src", "https://jdunk4.github.io/ARCADE1/SMW%20-%20Kaizo%20Mario%20World%201.png");
         set("status-label", "content", "");
         set("play-btn", "prompt", "Press E to Play Kaizo Mario World");
@@ -309,14 +371,13 @@
     function launchGame() {
       set("status-label", "content", "Launching emulator...");
       set("play-btn", "prompt", "Launching...");
-      nextAudioTime = 0;
       connectToServer();
     }
 
     function closeGame() {
       if (socket) socket.close();
       gameActive = false;
-      nextAudioTime = 0;
+      resetAudio();
     }
 
     function logCompletion() {
