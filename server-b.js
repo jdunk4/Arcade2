@@ -138,7 +138,7 @@ async function createWineSession(ws, romId, wallet) {
     "-f", "x11grab",
     "-r", String(TARGET_FPS),
     "-s", "544x416", // game window only - RPG Maker XP resolution
-    "-i", DISPLAY + ".0+240,176",     // crop to centered game window
+    "-i", DISPLAY + ".0+256,190",     // crop to centered game window
     "-vf", "scale=" + VIEWPORT_W + ":" + VIEWPORT_H,
     "-c:v", "mjpeg",
     "-q:v", "5",                       // quality 1=best 31=worst, 5 is good balance
