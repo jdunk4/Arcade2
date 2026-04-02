@@ -188,23 +188,51 @@ async function createWineSession(ws, romId, wallet) {
   ffmpegVideo.on("close", function(code) { console.log("[ffmpeg-video] exited code " + code); });
   ffmpegVideo.on("error", function(e) { console.warn("[ffmpeg-video] failed: " + e.message); });
 
-  // ── Step 4: ffmpeg — audio capture (same as existing sessions) ─
+  // ── Step 4: ffmpeg — audio capture with minimal buffering ─────
+  // Use very small cluster time to reduce audio latency/drift
   var ffmpegAudio = spawn("ffmpeg", [
     "-f", "pulse",
     "-i", "virtual_speaker.monitor",
     "-c:a", "libopus",
     "-b:a", "64k",
+    "-application", "lowdelay",  // opus low-delay mode
+    "-frame_duration", "20",      // 20ms frames (minimum)
     "-vn",
     "-f", "webm",
-    "-cluster_size_limit", "2M",
-    "-cluster_time_limit", "100",
+    "-cluster_size_limit", "256K", // smaller clusters = less buffering
+    "-cluster_time_limit", "40",   // 40ms max cluster = tighter sync
     "pipe:1"
   ], { stdio: ["ignore", "pipe", "pipe"] });
 
+  // Hard cap on audio queue — drop old chunks aggressively to stay in sync
+  var MAX_WINE_AUDIO_QUEUE = 2;
+  var wineAudioQueue = [];
+  var sendingAudio = false;
+
+  function flushWineAudio() {
+    if (sendingAudio || wineAudioQueue.length === 0) return;
+    // Drop stale chunks if backed up
+    while (wineAudioQueue.length > MAX_WINE_AUDIO_QUEUE) {
+      wineAudioQueue.shift();
+      console.log("[wine-audio] dropped stale chunk");
+    }
+    sendingAudio = true;
+    var chunk = wineAudioQueue.shift();
+    try {
+      ws.send(JSON.stringify({ type: "audio", data: chunk }), function() {
+        sendingAudio = false;
+        flushWineAudio();
+      });
+    } catch(e) {
+      sendingAudio = false;
+      console.warn("[wine-audio] send error: " + e.message);
+    }
+  }
+
   ffmpegAudio.stdout.on("data", function(chunk) {
     if (ws.readyState !== 1) return;
-    try { ws.send(JSON.stringify({ type: "audio", data: chunk.toString("base64") })); }
-    catch(e) { console.warn("[ffmpeg-audio] send error: " + e.message); }
+    wineAudioQueue.push(chunk.toString("base64"));
+    flushWineAudio();
   });
   ffmpegAudio.stderr.on("data", function(d) {
     var line = d.toString().trim();
