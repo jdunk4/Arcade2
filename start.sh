@@ -41,20 +41,36 @@ pactl list short sources 2>/dev/null || true
 echo "=== PulseAudio ready ==="
 
 # ── Wine initialization ───────────────────────────────────────────
-# Pre-initialize Wine prefix so first launch isn't slow/broken
 export WINEPREFIX=/root/.wine
 export WINEDEBUG=-all
 export DISPLAY=:99
 if [ ! -d "$WINEPREFIX" ]; then
   echo "=== Initializing Wine prefix (first run, takes ~30s) ==="
   wineboot --init 2>/dev/null || true
-  # Install required fonts for RPG Maker XP (otherwise text is invisible)
   winetricks -q corefonts 2>/dev/null || true
   echo "=== Wine prefix ready ==="
 else
   echo "=== Wine prefix already exists, skipping init ==="
 fi
 echo "Wine version: $(wine --version 2>/dev/null || echo 'unknown')"
+# ─────────────────────────────────────────────────────────────────
+
+# ── Pokemon Insurgence — download on first boot ───────────────────
+INSURGENCE_DIR="/app/insurgence"
+INSURGENCE_EXE="$INSURGENCE_DIR/Game.exe"
+INSURGENCE_URL="https://turbo-gateway.com/-x_QoDP7rkKE0r8qsum6EB_YqrWEo379ZWTTWqnmz1Q"
+
+if [ ! -f "$INSURGENCE_EXE" ]; then
+  echo "=== Downloading Pokemon Insurgence (first boot only) ==="
+  mkdir -p "$INSURGENCE_DIR"
+  curl -L "$INSURGENCE_URL" -o /tmp/insurgence.zip
+  echo "=== Download complete, unzipping... ==="
+  unzip -o /tmp/insurgence.zip -d "$INSURGENCE_DIR"
+  rm -f /tmp/insurgence.zip
+  echo "=== Pokemon Insurgence ready at $INSURGENCE_EXE ==="
+else
+  echo "=== Pokemon Insurgence already installed, skipping download ==="
+fi
 # ─────────────────────────────────────────────────────────────────
 
 exec node server-b.js
