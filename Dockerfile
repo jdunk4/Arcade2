@@ -13,18 +13,19 @@ RUN apt-get update && apt-get install -y \
   xdotool \
   # Screen/audio capture
   ffmpeg \
-  # PulseAudio (for audio routing)
+  # PulseAudio
   pulseaudio \
   pulseaudio-utils \
   # Wine
   wine \
   wine32 \
   wine64 \
+  # winetricks (for installing fonts inside Wine)
+  winetricks \
   # Chromium (for EmulatorJS sessions)
   chromium \
-  # Fonts (required by Wine/RPG Maker)
+  # Fonts
   fonts-liberation \
-  ttf-mscorefonts-installer \
   fontconfig \
   # Utilities
   wget \
@@ -34,11 +35,13 @@ RUN apt-get update && apt-get install -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-# ── Set up virtual display + PulseAudio on startup ────────────────
+# ── Environment ───────────────────────────────────────────────────
 ENV DISPLAY=:99
 ENV PULSE_SERVER=unix:/tmp/pulse/native
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV WINEPREFIX=/root/.wine
+ENV WINEDEBUG=-all
 
 # ── App ───────────────────────────────────────────────────────────
 WORKDIR /app
@@ -46,9 +49,7 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-# ── Startup script — boots Xvfb + PulseAudio then starts server ──
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+RUN chmod +x /app/start.sh
 
 EXPOSE 8081
-CMD ["/start.sh"]
+CMD ["/app/start.sh"]
