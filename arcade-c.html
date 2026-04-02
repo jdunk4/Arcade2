@@ -1,55 +1,58 @@
 <m-group>
 
-  <!-- Cabinet Body — deep red -->
-  <m-cube width="1.2" height="2.2" depth="0.8" y="1.1" color="#2a0a0a"></m-cube>
-  <m-cube width="1.0" height="0.85" depth="0.05" y="1.75" z="0.43" color="#0f0f0f"></m-cube>
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       GLB ARCADE MODEL
+       Tune: ry to rotate, scale to resize, y to raise/lower
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <m-model
+    src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/MODELS/ArcadeMachineFinal.glb"
+    y="0"
+    scale="1">
+  </m-model>
 
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       GAME SCREEN — overlaid on the GLB screen area
+       Tune: y, z to align with the GLB screen face
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
   <m-image
     id="screen"
     src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/SMB3MIX.png"
-    width="0.88" height="0.77"
-    y="1.75" z="0.46">
+    width="1.75" height="1.25"
+    y="2.69" z="0.626" rx="-18">
   </m-image>
 
-  <m-cube width="1.1" height="0.35" depth="0.3" y="2.4" z="0.25" color="#e8000d"></m-cube>
-  <m-label content="SMB3 MIX" y="2.47" z="0.42" width="1.0" height="0.16" font-size="8" color="#ffffff" alignment="center"></m-label>
-  <m-label content="Various" y="2.3" z="0.42" width="1.0" height="0.1" font-size="8" color="#ffcc00" alignment="center"></m-label>
-  <m-cube width="1.15" height="0.03" depth="0.1" y="2.62" z="0.3" color="#ffcc00"></m-cube>
-  <m-cube width="1.15" height="0.03" depth="0.1" y="2.22" z="0.3" color="#ffcc00"></m-cube>
-  <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="-0.625" color="#1a0505"></m-cube>
-  <m-cube width="0.05" height="2.2" depth="0.8" y="1.1" x="0.625" color="#1a0505"></m-cube>
-  <m-cube width="1.1" height="0.15" depth="0.5" y="0.95" z="0.15" rx="-20" color="#200808"></m-cube>
-  <m-cylinder radius="0.05" height="0.02" y="1.06" z="0.1" x="-0.2" color="#1a0000"></m-cylinder>
-  <m-sphere radius="0.06" y="1.1" z="0.1" x="-0.2" color="#cc0000"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.1" color="#e8000d"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.22" color="#ffcc00"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="0.05" x="0.34" color="#0044ff"></m-sphere>
-  <m-sphere radius="0.045" y="1.07" z="-0.05" x="0.22" color="#00aa44"></m-sphere>
-  <m-cube width="0.1" height="0.02" depth="0.02" y="1.45" z="0.42" color="#330000"></m-cube>
-  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="-0.3" color="#150000"></m-cube>
-  <m-cube width="0.15" height="0.25" depth="0.02" y="1.3" z="0.42" x="0.3" color="#150000"></m-cube>
-  <m-cube width="1.3" height="0.08" depth="0.9" y="0.04" color="#1a0505"></m-cube>
-  <m-label content="HACK" y="0.65" z="0.42" width="0.9" height="0.1" font-size="10" color="#ff4400" alignment="center"></m-label>
-  <m-label id="completion-label" content="0 players completed" y="0.52" z="0.42" width="0.9" height="0.1" font-size="10" color="#aaaaff" alignment="center"></m-label>
-  <m-label id="status-label" content="" y="0.38" z="0.42" width="0.85" height="0.12" font-size="11" color="#ffff00" alignment="center"></m-label>
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       LABELS — overlaid on GLB cabinet front
+       Tune: y, z positions to align with the GLB geometry
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <m-label content="HACK" y="0.65" z="0.38" width="0.9" height="0.1" font-size="10" color="#ff8c00" alignment="center"></m-label>
+  <m-label id="completion-label" content="0 players completed" y="0.52" z="0.38" width="0.9" height="0.1" font-size="10" color="#aaaaff" alignment="center"></m-label>
+  <m-label id="status-label" content="" y="0.38" z="0.38" width="0.85" height="0.12" font-size="11" color="#ffff00" alignment="center"></m-label>
 
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       INFO CARD — side mounted, appears on approach
+       Tune: x, y, z, ry to position beside the GLB cabinet
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
   <m-image
     id="info-card"
     src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/INFOCARDs/info-card-c.png"
-  width="1.4" height="2.23"
-  x="1.4" y="1.5" z="0.46"
-  ry="-15"
-  visible="false">
-</m-image>
+    width="1.4" height="2.23"
+    x="1.9" y="2.2" z="1.2"
+    ry="-15"
+    visible="false">
+  </m-image>
 
-  <m-position-probe range="4.0" id="probe"></m-position-probe>
+  <m-position-probe range="6.0" id="probe"></m-position-probe>
   <m-interaction id="play-btn" prompt="Press E to Play SMB3 Mix" range="4.0" y="1.1"></m-interaction>
 
-  <!-- 3D Controller -->
-  <m-group id="controller-root" y="0.9" z="0.85">
+  <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       MML CONTROLLER — floated above the GLB control panel
+       Tune: y, z on the m-group to align with the GLB panel surface
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+  <m-group id="controller-root" y="0.9" z="0.55">
     <m-cube width="0.9" height="0.18" depth="0.42" color="#1a0505" rx="8"></m-cube>
     <m-cube x="-0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
-    <m-cube x="0.38" y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
+    <m-cube x="0.38"  y="-0.12" z="0.04" width="0.22" height="0.32" depth="0.36" color="#1a0505" rx="12"></m-cube>
     <m-cube id="btn-dpad-up"    x="-0.3"  y="0.095" z="-0.04" width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-down"  x="-0.3"  y="0.095" z="0.06"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
     <m-cube id="btn-dpad-left"  x="-0.36" y="0.095" z="0.01"  width="0.06" height="0.01" depth="0.06" color="#3a3a5c"></m-cube>
@@ -85,7 +88,7 @@
       if (e) e.setAttribute(attr, val);
     }
 
-    var socket = null, gameActive = false, controllerConnected = false;
+    var socket = null, gameActive = false, pollingActive = false;
     var audioEl = null, mediaSource = null, sourceBuffer = null;
     var audioChunkQueue = [], sbReady = false, audioInitialized = false;
 
@@ -185,24 +188,29 @@
     }
 
     function poll() {
-      var gp = getBestGamepad();
-      if (gp) {
-        gp.buttons.forEach(function(btn, rawIndex) {
-          var di = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
-          setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
-        });
-        var axisX = gp.axes[0]||0, axisY = gp.axes[1]||0, T = 0.5;
-        var ls = document.getElementById("btn-ls"), rs = document.getElementById("btn-rs");
-        if (ls) { ls.setAttribute("x", -0.18 + axisX*0.04); ls.setAttribute("z", 0.06 + axisY*0.04); }
-        if (rs) { rs.setAttribute("x", 0.18 + (gp.axes[2]||0)*0.04); rs.setAttribute("z", 0.08 + (gp.axes[3]||0)*0.04); }
-        if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
-          if (axisX < -T) sendGameInput("left","keyDown"); else if (axisX > T) sendGameInput("right","keyDown");
-          else { sendGameInput("left","keyUp"); sendGameInput("right","keyUp"); }
-          if (axisY < -T) sendGameInput("up","keyDown"); else if (axisY > T) sendGameInput("down","keyDown");
-          else { sendGameInput("up","keyUp"); sendGameInput("down","keyUp"); }
+      if (pollingActive) return;
+      pollingActive = true;
+      function loop() {
+        var gp = getBestGamepad();
+        if (gp) {
+          gp.buttons.forEach(function(btn, rawIndex) {
+            var di = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
+            setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
+          });
+          var axisX = gp.axes[0]||0, axisY = gp.axes[1]||0, T = 0.5;
+          var ls = document.getElementById("btn-ls"), rs = document.getElementById("btn-rs");
+          if (ls) { ls.setAttribute("x", -0.18 + axisX*0.04); ls.setAttribute("z", 0.06 + axisY*0.04); }
+          if (rs) { rs.setAttribute("x", 0.18 + (gp.axes[2]||0)*0.04); rs.setAttribute("z", 0.08 + (gp.axes[3]||0)*0.04); }
+          if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
+            if (axisX < -T) sendGameInput("left","keyDown"); else if (axisX > T) sendGameInput("right","keyDown");
+            else { sendGameInput("left","keyUp"); sendGameInput("right","keyUp"); }
+            if (axisY < -T) sendGameInput("up","keyDown"); else if (axisY > T) sendGameInput("down","keyDown");
+            else { sendGameInput("up","keyUp"); sendGameInput("down","keyUp"); }
+          }
         }
+        requestAnimationFrame(loop);
       }
-      requestAnimationFrame(poll);
+      loop();
     }
 
     function connectToServer() {
@@ -262,7 +270,7 @@
 
     setTimeout(function() {
       poll();
-      window.addEventListener("gamepadconnected", function() { poll(); });
+      window.addEventListener("gamepadconnected", function() { if (!pollingActive) poll(); });
       var playBtn = document.getElementById("play-btn");
       if (playBtn) playBtn.addEventListener("interact", function() {
         unlockAudio();
