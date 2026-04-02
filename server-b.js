@@ -137,8 +137,8 @@ async function createWineSession(ws, romId, wallet) {
   var ffmpegVideo = spawn("ffmpeg", [
     "-f", "x11grab",
     "-r", String(TARGET_FPS),
-    "-s", "1024x768", // full virtual display
-    "-i", DISPLAY + ".0+0,0",         // capture full virtual display
+    "-s", "544x416", // game window only - RPG Maker XP resolution
+    "-i", DISPLAY + ".0+240,176",     // crop to centered game window
     "-vf", "scale=" + VIEWPORT_W + ":" + VIEWPORT_H,
     "-c:v", "mjpeg",
     "-q:v", "5",                       // quality 1=best 31=worst, 5 is good balance
