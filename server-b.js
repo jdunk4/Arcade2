@@ -123,7 +123,7 @@ async function createWineSession(ws, romId, wallet) {
     "-f", "x11grab",
     "-r", String(TARGET_FPS),
     "-s", VIEWPORT_W + "x" + VIEWPORT_H,
-    "-i", DISPLAY + ".0+0,0",         // grab from virtual display
+    "-i", DISPLAY + ".0+512,320",    // game window offset: 1024x768 - 512x448 = bottom-right
     "-vf", "scale=" + VIEWPORT_W + ":" + VIEWPORT_H,
     "-c:v", "mjpeg",
     "-q:v", "5",                       // quality 1=best 31=worst, 5 is good balance
