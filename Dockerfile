@@ -6,34 +6,31 @@ RUN dpkg --add-architecture i386
 
 # ── System dependencies ───────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
-  # Virtual display
   xvfb \
   x11-utils \
-  # Input simulation
   xdotool \
-  # Screen/audio capture
   ffmpeg \
-  # PulseAudio
   pulseaudio \
   pulseaudio-utils \
-  # Wine
   wine \
   wine32 \
   wine64 \
-  # winetricks (for installing fonts inside Wine)
-  winetricks \
-  # Chromium (for EmulatorJS sessions)
   chromium \
-  # Fonts
   fonts-liberation \
   fontconfig \
-  # Utilities
   wget \
   curl \
   ca-certificates \
+  cabextract \
+  unzip \
   --no-install-recommends \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+# ── Install winetricks manually from GitHub ───────────────────────
+RUN wget -q https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks \
+  -O /usr/local/bin/winetricks \
+  && chmod +x /usr/local/bin/winetricks
 
 # ── Environment ───────────────────────────────────────────────────
 ENV DISPLAY=:99
