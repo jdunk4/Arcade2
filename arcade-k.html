@@ -184,7 +184,7 @@
         if (frame.image) { set("screen", "src", frame.image); set("status-label", "content", ""); if (!gameActive) { gameActive = true; set("play-btn", "prompt", "Press E to Close"); resumeAudio(); } }
       };
       socket.onclose = function() { gameActive = false; resetAudio(); set("screen", "src", ROM_PREVIEW); set("status-label", "content", ""); set("play-btn", "prompt", "Press E to Play " + ROM_TITLE); };
-      socket.onerror = function() { audioEnabled = false; set("status-label", "content", "Connection failed"); socket.close(); };
+      socket.onerror = function() { set("status-label", "content", "Connection failed"); socket.close(); };
     }
 
     function launchGame() { resetAudio(); audioEnabled = true; initAudio(); set("status-label", "content", "Launching emulator..."); set("play-btn", "prompt", "Launching..."); connectToServer(); }
