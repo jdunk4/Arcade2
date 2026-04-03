@@ -174,7 +174,7 @@
       var sessionId = Math.random().toString(36).slice(2);
       var wsUrl = SNES_SERVER_WS + "?rom=" + encodeURIComponent(ROM_FILE) + "&core=" + encodeURIComponent(ROM_CORE) + "&id=" + encodeURIComponent(ROM_ID) + "&session=" + sessionId + "&wallet=" + encodeURIComponent(WALLET);
       socket = new WebSocket(wsUrl);
-      socket.onopen = function() { audioEnabled = true; initAudio(); set("status-label", "content", ""); };
+      socket.onopen = function() { set("status-label", "content", ""); };
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
         if (frame.type === "audio" && frame.data) { playAudioChunk(frame.data); return; }
@@ -187,7 +187,7 @@
       socket.onerror = function() { audioEnabled = false; set("status-label", "content", "Connection failed"); socket.close(); };
     }
 
-    function launchGame() { set("status-label", "content", "Launching emulator..."); set("play-btn", "prompt", "Launching..."); connectToServer(); }
+    function launchGame() { resetAudio(); audioEnabled = true; initAudio(); set("status-label", "content", "Launching emulator..."); set("play-btn", "prompt", "Launching..."); connectToServer(); }
     function closeGame() { if (socket) socket.close(); gameActive = false; resetAudio(); }
 
     function logCompletion() {
