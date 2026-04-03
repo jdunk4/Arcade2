@@ -47,7 +47,7 @@
   </m-group>
 
   <script>
-  (function() {
+  (function(root) {
 
     var ROM_FILE    = "PokemonInsurgence";
     var ROM_CORE    = "wine";
@@ -58,7 +58,7 @@
     var BACKEND_SERVER = "https://gamer-production.up.railway.app";
     var WALLET = "anonymous";
 
-    function set(id, attr, val) { var e = document.getElementById(id); if (e) e.setAttribute(attr, val); }
+    function set(id, attr, val) { var e = root.querySelector("#" + id); if (e) e.setAttribute(attr, val); }
 
     var socket = null, gameActive = false, pollingActive = false;
 
@@ -92,7 +92,7 @@
 
     function setButtonPressed(rawIndex, di, pressed) {
       var map = buttonMap[di]; if (!map) return;
-      var elem = document.getElementById(map.id); if (!elem) return;
+      var elem = root.querySelector("#" + map.id); if (!elem) return;
       if (pressed && !buttonStates[di]) {
         buttonStates[di] = true;
         elem.setAttribute("color",   map.glowColor);
@@ -124,7 +124,7 @@
             setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
           });
           var axisX = gp.axes[0]||0, axisY = gp.axes[1]||0, T = 0.5;
-          var ls = document.getElementById("btn-ls"), rs = document.getElementById("btn-rs");
+          var ls = root.querySelector("#btn-ls"), rs = root.querySelector("#btn-rs");
           if (ls) { ls.setAttribute("x", -0.160 + axisX*0.028); ls.setAttribute("y", -0.280 + axisY*0.028); }
           if (rs) { rs.setAttribute("x",  0.120 + (gp.axes[2]||0)*0.028); rs.setAttribute("y", -0.310 + (gp.axes[3]||0)*0.028); }
           if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
@@ -205,11 +205,11 @@
     setTimeout(function() {
       poll();
       window.addEventListener("gamepadconnected", function() { if (!pollingActive) poll(); });
-      var playBtn = document.getElementById("play-btn");
+      var playBtn = root.querySelector("#play-btn");
       if (playBtn) playBtn.addEventListener("interact", function() {
         if (gameActive) closeGame(); else launchGame();
       });
-      var probe = document.getElementById("probe");
+      var probe = root.querySelector("#probe");
       if (probe) {
         probe.addEventListener("positionenter", function() { set("info-card", "visible", "true"); });
         probe.addEventListener("positionleave", function() {
@@ -220,7 +220,7 @@
       refreshCompletionCount();
     }, 500);
 
-  })();
+  })(document.currentScript ? document.currentScript.closest("m-group") : document);
   </script>
 
 </m-group>
