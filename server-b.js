@@ -202,7 +202,6 @@ async function createWineSession(ws, romId, wallet) {
     wallet,
     romId
   });
-  });
 
   ws.send(JSON.stringify({ type: "status", message: "" }));
   console.log("[wine] session live: " + wallet + " / " + romId);
