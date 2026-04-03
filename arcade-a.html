@@ -31,58 +31,38 @@
     <m-cube id="btn-dpad-down"  x="-0.280" y="-0.196" z="0.168" width="0.088" height="0.132" depth="0.024" color="#cccccc" opacity="0.0"></m-cube>
     <m-cube id="btn-dpad-left"  x="-0.348" y="-0.160" z="0.168" width="0.132" height="0.088" depth="0.024" color="#cccccc" opacity="0.0"></m-cube>
     <m-cube id="btn-dpad-right" x="-0.212" y="-0.160" z="0.168" width="0.132" height="0.088" depth="0.024" color="#cccccc" opacity="0.0"></m-cube>
-
     <m-sphere id="btn-b" x="0.180" y="-0.220" z="0.172" radius="0.072" color="#cc1177" opacity="0.0"></m-sphere>
     <m-sphere id="btn-a" x="0.350" y="-0.140" z="0.172" radius="0.072" color="#cc1177" opacity="0.0"></m-sphere>
     <m-sphere id="btn-x" x="0.350" y="-0.140" z="0.172" radius="0.072" color="#5588ff" opacity="0.0"></m-sphere>
     <m-sphere id="btn-y" x="0.180" y="-0.220" z="0.172" radius="0.072" color="#ffee44" opacity="0.0"></m-sphere>
-
     <m-cube id="btn-select" x="-0.100" y="-0.390" z="0.162" width="0.145" height="0.052" depth="0.022" color="#8888cc" opacity="0.0"></m-cube>
     <m-cube id="btn-start"  x=" 0.120" y="-0.390" z="0.162" width="0.145" height="0.052" depth="0.022" color="#8888cc" opacity="0.0"></m-cube>
-
     <m-cube id="btn-lb" x="-0.240" y="0.660" z="0.130" width="0.200" height="0.072" depth="0.060" color="#aa88ff" opacity="0.0"></m-cube>
     <m-cube id="btn-rb" x=" 0.240" y="0.660" z="0.130" width="0.200" height="0.072" depth="0.060" color="#aa88ff" opacity="0.0"></m-cube>
     <m-cube id="btn-lt" x="-0.240" y="0.640" z="0.100" width="0.200" height="0.055" depth="0.080" color="#ff8844" opacity="0.0"></m-cube>
     <m-cube id="btn-rt" x=" 0.240" y="0.640" z="0.100" width="0.200" height="0.055" depth="0.080" color="#ff8844" opacity="0.0"></m-cube>
-
     <m-sphere id="btn-ls" x="-0.160" y="-0.280" z="0.170" radius="0.045" color="#66ddff" opacity="0.0"></m-sphere>
     <m-sphere id="btn-rs" x=" 0.120" y="-0.310" z="0.170" radius="0.045" color="#66ddff" opacity="0.0"></m-sphere>
 
   </m-group>
 
   <script>
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // IIFE — every variable is local to THIS cabinet only.
-  // No globals leak into the shared MML JS context, so audio and
-  // state from Insurgence can never bleed into the Mario cabinets.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   (function() {
 
-    var ROM_FILE = "PokemonInsurgence";
-    var ROM_CORE = "wine";
-    var ROM_ID   = "pokemon-insurgence";
+    var ROM_FILE    = "PokemonInsurgence";
+    var ROM_CORE    = "wine";
+    var ROM_ID      = "pokemon-insurgence";
     var ROM_TITLE   = "Pokemon Insurgence";
     var ROM_PREVIEW = "PLACEHOLDER_IMAGE_URL_A";
     var SNES_SERVER_WS = "wss://arcade2-production.up.railway.app";
     var BACKEND_SERVER = "https://gamer-production.up.railway.app";
     var WALLET = "anonymous";
 
-    function set(id, attr, val) {
-      var e = document.getElementById(id);
-      if (e) e.setAttribute(attr, val);
-    }
+    function set(id, attr, val) { var e = document.getElementById(id); if (e) e.setAttribute(attr, val); }
 
     var socket = null, gameActive = false, pollingActive = false;
-
-    // ── AUDIO — fully private to this IIFE instance ─────────────────
-    var audioEl = null,
-        mediaSource = null,
-        sourceBuffer = null,
-        audioObjectURL = null;
-    var audioChunkQueue = [],
-        sbReady = false,
-        audioInitialized = false,
-        audioEnabled = false;  // true ONLY while this cabinet's socket is open
+    var audioEl = null, mediaSource = null, sourceBuffer = null, audioObjectURL = null;
+    var audioChunkQueue = [], sbReady = false, audioInitialized = false, audioEnabled = false;
 
     function initAudio() {
       if (audioInitialized) return;
@@ -99,7 +79,7 @@
             sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
             sourceBuffer.mode = "sequence";
             sbReady = true;
-            flushAudioQueue();
+            flushAudioQueue(); // flush anything that queued up while MediaSource was opening
           } catch(e) {}
         });
       } catch(e) {}
@@ -132,10 +112,7 @@
     }
 
     function unlockAudio() {
-      try {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) { var c = new AC(); c.resume(); }
-      } catch(e) {}
+      try { var AC = window.AudioContext || window.webkitAudioContext; if (AC) { var c = new AC(); c.resume(); } } catch(e) {}
       resumeAudio();
     }
 
@@ -150,19 +127,13 @@
       audioChunkQueue = [];
       sbReady = false;
       audioInitialized = false;
-      if (audioEl) {
-        try { audioEl.pause(); audioEl.src = ""; } catch(e) {}
-      }
-      if (audioObjectURL) {
-        try { URL.revokeObjectURL(audioObjectURL); } catch(e) {}
-        audioObjectURL = null;
-      }
+      if (audioEl) { try { audioEl.pause(); audioEl.src = ""; } catch(e) {} }
+      if (audioObjectURL) { try { URL.revokeObjectURL(audioObjectURL); } catch(e) {} audioObjectURL = null; }
       audioEl = null;
       mediaSource = null;
       sourceBuffer = null;
     }
 
-    // ── BUTTON MAP ──────────────────────────────────────────────────
     var buttonMap = {
       0:  { id: "btn-a",          glowColor: "#ff44aa", restZ: 0.172, pressZ: 0.152 },
       1:  { id: "btn-b",          glowColor: "#ff44aa", restZ: 0.172, pressZ: 0.152 },
@@ -182,18 +153,8 @@
       15: { id: "btn-dpad-right", glowColor: "#ffffff", restZ: 0.168, pressZ: 0.150 }
     };
 
-    var wineKeyMap = {
-      0:"a", 1:"b", 2:"x", 3:"y",
-      4:"l", 5:"r",
-      8:"select", 9:"start",
-      12:"up", 13:"down", 14:"left", 15:"right"
-    };
-    var remapIndex = {
-      0:1, 1:0, 2:3, 3:2,
-      4:4, 5:5, 6:6, 7:7,
-      8:8, 9:9, 10:10, 11:11,
-      12:12, 13:13, 14:14, 15:15
-    };
+    var wineKeyMap = { 0:"a",1:"b",2:"x",3:"y",4:"l",5:"r",8:"select",9:"start",12:"up",13:"down",14:"left",15:"right" };
+    var remapIndex = { 0:1,1:0,2:3,3:2,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11,12:12,13:13,14:14,15:15 };
     var buttonStates = {};
 
     function sendGameInput(key, type) {
@@ -202,38 +163,31 @@
     }
 
     function setButtonPressed(rawIndex, di, pressed) {
-      var map = buttonMap[di];
-      if (!map) return;
-      var elem = document.getElementById(map.id);
-      if (!elem) return;
+      var map = buttonMap[di]; if (!map) return;
+      var elem = document.getElementById(map.id); if (!elem) return;
       if (pressed && !buttonStates[di]) {
         buttonStates[di] = true;
         elem.setAttribute("color",   map.glowColor);
         elem.setAttribute("opacity", "0.85");
         elem.setAttribute("z",       map.pressZ);
-        var k = wineKeyMap[rawIndex];
-        if (k) sendGameInput(k, "keyDown");
+        var k = wineKeyMap[rawIndex]; if (k) sendGameInput(k, "keyDown");
       } else if (!pressed && buttonStates[di]) {
         buttonStates[di] = false;
         elem.setAttribute("opacity", "0.0");
         elem.setAttribute("z",       map.restZ);
-        var k = wineKeyMap[rawIndex];
-        if (k) sendGameInput(k, "keyUp");
+        var k = wineKeyMap[rawIndex]; if (k) sendGameInput(k, "keyUp");
       }
     }
 
     function getBestGamepad() {
       var gps = navigator.getGamepads ? navigator.getGamepads() : [];
-      for (var i = 0; i < gps.length; i++)
-        if (gps[i] && gps[i].mapping === "standard") return gps[i];
-      for (var j = 0; j < gps.length; j++)
-        if (gps[j]) return gps[j];
+      for (var i = 0; i < gps.length; i++) if (gps[i] && gps[i].mapping === "standard") return gps[i];
+      for (var j = 0; j < gps.length; j++) if (gps[j]) return gps[j];
       return null;
     }
 
     function poll() {
-      if (pollingActive) return;
-      pollingActive = true;
+      if (pollingActive) return; pollingActive = true;
       function loop() {
         var gp = getBestGamepad();
         if (gp) {
@@ -241,18 +195,15 @@
             var di = remapIndex.hasOwnProperty(rawIndex) ? remapIndex[rawIndex] : rawIndex;
             setButtonPressed(rawIndex, di, btn.pressed || btn.value > 0.5);
           });
-          var axisX = gp.axes[0] || 0, axisY = gp.axes[1] || 0, T = 0.5;
-          var ls = document.getElementById("btn-ls"),
-              rs = document.getElementById("btn-rs");
-          if (ls) { ls.setAttribute("x", -0.160 + axisX * 0.028); ls.setAttribute("y", -0.280 + axisY * 0.028); }
-          if (rs) { rs.setAttribute("x",  0.120 + (gp.axes[2] || 0) * 0.028); rs.setAttribute("y", -0.310 + (gp.axes[3] || 0) * 0.028); }
+          var axisX = gp.axes[0]||0, axisY = gp.axes[1]||0, T = 0.5;
+          var ls = document.getElementById("btn-ls"), rs = document.getElementById("btn-rs");
+          if (ls) { ls.setAttribute("x", -0.160 + axisX*0.028); ls.setAttribute("y", -0.280 + axisY*0.028); }
+          if (rs) { rs.setAttribute("x",  0.120 + (gp.axes[2]||0)*0.028); rs.setAttribute("y", -0.310 + (gp.axes[3]||0)*0.028); }
           if (!buttonStates[14] && !buttonStates[15] && !buttonStates[12] && !buttonStates[13]) {
-            if (axisX < -T) sendGameInput("left", "keyDown");
-            else if (axisX > T) sendGameInput("right", "keyDown");
-            else { sendGameInput("left", "keyUp"); sendGameInput("right", "keyUp"); }
-            if (axisY < -T) sendGameInput("up", "keyDown");
-            else if (axisY > T) sendGameInput("down", "keyDown");
-            else { sendGameInput("up", "keyUp"); sendGameInput("down", "keyUp"); }
+            if (axisX < -T) sendGameInput("left","keyDown"); else if (axisX > T) sendGameInput("right","keyDown");
+            else { sendGameInput("left","keyUp"); sendGameInput("right","keyUp"); }
+            if (axisY < -T) sendGameInput("up","keyDown"); else if (axisY > T) sendGameInput("down","keyDown");
+            else { sendGameInput("up","keyUp"); sendGameInput("down","keyUp"); }
           }
         }
         requestAnimationFrame(loop);
@@ -271,12 +222,18 @@
       socket = new WebSocket(wsUrl);
 
       socket.onopen = function() {
-        audioEnabled = true;
+        audioEnabled = true;   // gate opens — this cabinet owns audio now
+        initAudio();           // start warming up MediaSource immediately
         set("status-label", "content", "");
       };
+
       socket.onmessage = function(msg) {
         var frame = JSON.parse(msg.data);
-        if (frame.type === "audio" && frame.data) { playAudioChunk(frame.data); return; }
+        if (frame.type === "audio" && frame.data) {
+          // chunks queue up inside playAudioChunk; flushAudioQueue drains once sbReady=true
+          playAudioChunk(frame.data);
+          return;
+        }
         if (frame.type === "status") { set("status-label", "content", frame.message); return; }
         if (frame.type === "error")  { set("status-label", "content", "Error: " + frame.message); return; }
         if (frame.image) {
@@ -285,10 +242,11 @@
           if (!gameActive) {
             gameActive = true;
             set("play-btn", "prompt", "Press E to Close");
-            resumeAudio();
+            resumeAudio(); // ensure audioEl.play() is called after user gesture
           }
         }
       };
+
       socket.onclose = function() {
         gameActive = false;
         resetAudio();
@@ -296,6 +254,7 @@
         set("status-label", "content", "");
         set("play-btn", "prompt", "Press E to Play " + ROM_TITLE);
       };
+
       socket.onerror = function() {
         audioEnabled = false;
         set("status-label", "content", "Connection failed");
@@ -326,14 +285,11 @@
 
     setTimeout(function() {
       poll();
-      window.addEventListener("gamepadconnected", function() {
-        if (!pollingActive) poll();
-      });
+      window.addEventListener("gamepadconnected", function() { if (!pollingActive) poll(); });
       var playBtn = document.getElementById("play-btn");
       if (playBtn) playBtn.addEventListener("interact", function() {
         unlockAudio();
-        if (gameActive) closeGame();
-        else launchGame();
+        if (gameActive) closeGame(); else launchGame();
       });
       var probe = document.getElementById("probe");
       if (probe) {
@@ -346,7 +302,7 @@
       refreshCompletionCount();
     }, 500);
 
-  })(); // end IIFE
+  })();
   </script>
 
 </m-group>
