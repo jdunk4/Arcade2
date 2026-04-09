@@ -1,20 +1,19 @@
 <m-group>
 
-  <!-- GAME BOY MODEL: buttons pushed to sides -->
+  <!-- GAME BOY MODEL -->
   <m-model
     src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/MODELS/mario_land_buttons_wide.glb"
     sx="0.28" sy="0.4" sz="0.4"
     y="2.282" z="-0.064">
   </m-model>
 
-  <!-- LIVE STREAM SCREEN — sits inside Game Boy screen cutout -->
+  <!-- LIVE STREAM SCREEN -->
   <m-image id="screen"
     src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png"
     width="2.2" height="2.0"
     x="0" y="2.359" z="0.241">
   </m-image>
 
-  <!-- Status label -->
   <m-label id="status-label" content=""
     y="0.3" z="0.3" width="3" height="0.2"
     font-size="11" color="#ffff00" alignment="center">
@@ -22,43 +21,146 @@
 
   <script>
   (function(root) {
-    var CHANNEL_ID  = "snes-live";
-    var SERVER_WS   = "wss://arcade2-production.up.railway.app";
-    var PREVIEW_IMG = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png";
+    var SNES_SERVER_WS = "wss://arcade2-production.up.railway.app";
+    var PREVIEW_IMG    = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png";
 
     function set(id, attr, val) {
       var e = root.querySelector("#" + id);
       if (e) e.setAttribute(attr, val);
     }
 
+    // ── Audio — same MediaSource chunked approach as arcade-b ────
+    var audioEl        = null;
+    var mediaSource    = null;
+    var sourceBuffer   = null;
+    var audioObjectURL = null;
+    var audioQueue     = [];
+    var sbReady        = false;
+    var audioInit      = false;
+    var audioEnabled   = false;
+    var MAX_QUEUE      = 3;
+
+    function initAudio() {
+      if (audioInit) return;
+      audioInit = true;
+      try {
+        if (!window.MediaSource) return;
+        audioEl           = new Audio();
+        audioEl.autoplay  = true;
+        mediaSource       = new MediaSource();
+        audioObjectURL    = URL.createObjectURL(mediaSource);
+        audioEl.src       = audioObjectURL;
+
+        mediaSource.addEventListener("sourceopen", function() {
+          try {
+            // PCM audio from broadcaster — use webm/opus if available
+            // Fall back to raw PCM via wav
+            sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
+            sourceBuffer.mode = "sequence";
+            sbReady = true;
+            flushQueue();
+          } catch(e) {
+            console.warn("[audio] sourceopen error:", e.message);
+          }
+        });
+
+        audioEl.play().catch(function(e) {
+          console.warn("[audio] play blocked:", e.message);
+        });
+
+      } catch(e) {
+        console.warn("[audio] init failed:", e.message);
+      }
+    }
+
+    function flushQueue() {
+      if (!audioEnabled || !sbReady || !sourceBuffer ||
+          sourceBuffer.updating || audioQueue.length === 0) return;
+      while (audioQueue.length > MAX_QUEUE) audioQueue.shift();
+      var chunk = audioQueue.shift();
+      try {
+        sourceBuffer.appendBuffer(chunk);
+      } catch(e) {
+        audioQueue = [];
+        return;
+      }
+      sourceBuffer.addEventListener("updateend", function onUpdate() {
+        sourceBuffer.removeEventListener("updateend", onUpdate);
+        flushQueue();
+      });
+    }
+
+    function playAudioChunk(base64Data) {
+      if (!audioEnabled || !audioEl || !mediaSource) return;
+      try {
+        var binary = atob(base64Data);
+        var buf    = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+        audioQueue.push(buf.buffer);
+        flushQueue();
+      } catch(e) {}
+    }
+
+    function resumeAudio() {
+      if (!audioEnabled) return;
+      if (!audioInit) initAudio();
+      if (audioEl && audioEl.paused) audioEl.play().catch(function() {});
+    }
+
+    // ── Frame handling ────────────────────────────────────────────
+    function handleFrame(data) {
+      try {
+        var frame = JSON.parse(data);
+
+        if (frame.type === "audio" && frame.data) {
+          playAudioChunk(frame.data);
+          return;
+        }
+
+        if (frame.type === "status") {
+          set("status-label", "content", frame.message);
+          if (frame.message === "Stream ended") set("screen", "src", PREVIEW_IMG);
+          return;
+        }
+
+        if (frame.image) {
+          set("screen", "src", frame.image);
+          set("status-label", "content", "");
+          // Enable and resume audio when first frame arrives
+          if (!audioEnabled) {
+            audioEnabled = true;
+            resumeAudio();
+          }
+        }
+      } catch(e) {
+        console.log("[screen] parse error: " + e.message);
+      }
+    }
+
+    // ── WebSocket ─────────────────────────────────────────────────
     var socket = null;
 
     function connect() {
-      var wsUrl = SERVER_WS + "?mode=view&channel=" + encodeURIComponent(CHANNEL_ID);
-      socket = new WebSocket(wsUrl);
+      var wsUrl = SNES_SERVER_WS + "?mode=view&channel=snes-live";
+      socket    = new WebSocket(wsUrl);
 
       socket.onopen = function() {
-        console.log("[screen] connected to relay");
+        console.log("[screen] connected");
         set("status-label", "content", "");
+        initAudio();
       };
 
-      socket.onmessage = function(ev) {
-        try {
-          var msg = JSON.parse(ev.data);
-          if (msg.image) {
-            set("screen", "src", msg.image);
-            set("status-label", "content", "");
-          }
-          if (msg.type === "status") {
-            set("status-label", "content", msg.message);
-            if (msg.message === "Stream ended") {
-              set("screen", "src", PREVIEW_IMG);
-            }
-          }
-        } catch(e) {}
+      socket.onmessage = function(msg) {
+        var data = msg.data;
+        if (data && typeof data.text === "function") {
+          data.text().then(function(text) { handleFrame(text); }).catch(function() {});
+          return;
+        }
+        handleFrame(data);
       };
 
       socket.onclose = function() {
+        audioEnabled = false;
         set("status-label", "content", "Reconnecting...");
         setTimeout(connect, 3000);
       };
