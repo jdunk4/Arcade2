@@ -1,0 +1,76 @@
+<m-group>
+
+  <!-- GAME BOY MODEL: buttons pushed to sides -->
+  <m-model
+    src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/MODELS/mario_land_buttons_wide.glb"
+    sx="0.28" sy="0.4" sz="0.4"
+    y="2.282" z="-0.064">
+  </m-model>
+
+  <!-- LIVE STREAM SCREEN — sits inside Game Boy screen cutout -->
+  <m-image id="screen"
+    src="https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png"
+    width="2.2" height="2.0"
+    x="0" y="2.359" z="0.241">
+  </m-image>
+
+  <!-- Status label -->
+  <m-label id="status-label" content=""
+    y="0.3" z="0.3" width="3" height="0.2"
+    font-size="11" color="#ffff00" alignment="center">
+  </m-label>
+
+  <script>
+  (function(root) {
+    var CHANNEL_ID  = "snes-live";
+    var SERVER_WS   = "wss://arcade2-production.up.railway.app";
+    var PREVIEW_IMG = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png";
+
+    function set(id, attr, val) {
+      var e = root.querySelector("#" + id);
+      if (e) e.setAttribute(attr, val);
+    }
+
+    var socket = null;
+
+    function connect() {
+      var wsUrl = SERVER_WS + "?mode=view&channel=" + encodeURIComponent(CHANNEL_ID);
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = function() {
+        console.log("[screen] connected to relay");
+        set("status-label", "content", "");
+      };
+
+      socket.onmessage = function(ev) {
+        try {
+          var msg = JSON.parse(ev.data);
+          if (msg.image) {
+            set("screen", "src", msg.image);
+            set("status-label", "content", "");
+          }
+          if (msg.type === "status") {
+            set("status-label", "content", msg.message);
+            if (msg.message === "Stream ended") {
+              set("screen", "src", PREVIEW_IMG);
+            }
+          }
+        } catch(e) {}
+      };
+
+      socket.onclose = function() {
+        set("status-label", "content", "Reconnecting...");
+        setTimeout(connect, 3000);
+      };
+
+      socket.onerror = function() {
+        set("status-label", "content", "Connection error");
+      };
+    }
+
+    setTimeout(connect, 500);
+
+  })(document.currentScript ? document.currentScript.closest("m-group") : document);
+  </script>
+
+</m-group>
