@@ -2,9 +2,9 @@
   "name": "mml-snes-streaming-server",
   "version": "1.0.0",
   "description": "Puppeteer streams headless Chrome running EmulatorJS — Path B",
-  "main": "server-b.js",
+  "main": "server-c.js",
   "scripts": {
-    "start": "node server-b.js"
+    "start": "node server-c.js"
   },
   "dependencies": {
     "express": "latest",
