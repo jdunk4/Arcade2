@@ -48,12 +48,11 @@ app.get("/debug-display.jpg", function(req, res) {
       res.setHeader("Content-Type", "image/jpeg");
       res.sendFile(p);
     } else {
-      res.status(404).send("No display screenshot — is a Wine session running?");
+      res.status(404).send("No display screenshot");
     }
   } catch(e) { res.status(500).send("Error: " + e.message); }
 });
 
-// ── Key maps ──────────────────────────────────────────────────────────────────
 const KEY_MAP = {
   up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
   a: "z", b: "x", x: "a", y: "s",
@@ -61,28 +60,19 @@ const KEY_MAP = {
 };
 
 const WINE_KEY_MAP = {
-  up:     "Up",
-  down:   "Down",
-  left:   "Left",
-  right:  "Right",
-  a:      "z",
-  b:      "x",
-  x:      "a",
-  y:      "s",
-  start:  "Return",
-  select: "Shift_L",
-  l:      "q",
-  r:      "w"
+  up: "Up", down: "Down", left: "Left", right: "Right",
+  a: "z", b: "x", x: "a", y: "s",
+  start: "Return", select: "Shift_L", l: "q", r: "w"
 };
 
 const sessions = new Map();
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// BROADCAST RELAY — viewers watching a live broadcast channel
-// Key: channelId (string), Value: Set of viewer WebSocket connections
+// BROADCAST RELAY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const broadcastViewers = new Map();  // channelId → Set<ws>
-const broadcastSenders = new Map();  // channelId → ws (only one broadcaster per channel)
+const broadcastSenders = new Map();  // channelId → ws
+const broadcastLastFrame = new Map(); // channelId → last frame data string ← NEW
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // WINE SESSION
@@ -99,51 +89,33 @@ async function createWineSession(ws, romId, wallet) {
   var wineProc = null;
   try {
     wineProc = spawn("wine", [INSURGENCE_PATH], {
-      env: Object.assign({}, process.env, {
-        DISPLAY: DISPLAY,
-        WINEDEBUG: "-all"
-      }),
+      env: Object.assign({}, process.env, { DISPLAY: DISPLAY, WINEDEBUG: "-all" }),
       stdio: ["ignore", "pipe", "pipe"]
     });
-
     wineProc.stdout.on("data", function(d) { console.log("[wine] " + d.toString().trim()); });
     wineProc.stderr.on("data", function(d) {
       var line = d.toString().trim();
       if (line.includes("err:") || line.includes("fixme:")) return;
       if (line.length > 0) console.log("[wine] " + line);
     });
-    wineProc.on("close", function(code) {
-      console.log("[wine] process exited code " + code);
-      destroySession(ws);
-    });
+    wineProc.on("close", function(code) { console.log("[wine] exited " + code); destroySession(ws); });
     wineProc.on("error", function(e) {
-      console.error("[wine] failed to start: " + e.message);
       ws.send(JSON.stringify({ type: "error", message: "Wine failed: " + e.message }));
     });
-
-    console.log("[wine] Game.exe launched (pid " + wineProc.pid + ")");
-
   } catch(e) {
     ws.send(JSON.stringify({ type: "error", message: "Could not launch Wine: " + e.message }));
     ws.close();
     return;
   }
 
-  console.log("[wine] waiting 8s for game window...");
   await new Promise(function(r) { setTimeout(r, 8000); });
   ws.send(JSON.stringify({ type: "status", message: "Loading game..." }));
 
   var ffmpegVideo = spawn("ffmpeg", [
-    "-f", "x11grab",
-    "-r", String(TARGET_FPS),
-    "-s", "544x416",
+    "-f", "x11grab", "-r", String(TARGET_FPS), "-s", "544x416",
     "-i", DISPLAY + ".0+175,145",
     "-vf", "scale=" + VIEWPORT_W + ":" + VIEWPORT_H,
-    "-c:v", "mjpeg",
-    "-q:v", "5",
-    "-f", "image2pipe",
-    "-vcodec", "mjpeg",
-    "pipe:1"
+    "-c:v", "mjpeg", "-q:v", "5", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"
   ], { stdio: ["ignore", "pipe", "pipe"] });
 
   var jpegBuffer = Buffer.alloc(0);
@@ -158,37 +130,19 @@ async function createWineSession(ws, romId, wallet) {
       var end = jpegBuffer.indexOf(EOI, start + 2);
       if (end === -1) break;
       end += 2;
-
       var frame = jpegBuffer.slice(start, end);
       jpegBuffer = jpegBuffer.slice(end);
-
       if (ws.readyState === 1) {
-        try {
-          ws.send(JSON.stringify({
-            image: "data:image/jpeg;base64," + frame.toString("base64")
-          }));
-        } catch(e) { console.warn("[wine] frame send error: " + e.message); }
+        try { ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + frame.toString("base64") })); }
+        catch(e) {}
       }
     }
   });
 
-  ffmpegVideo.stderr.on("data", function(d) {
-    var line = d.toString().trim();
-    if (line.includes("Error") || line.includes("error")) console.log("[ffmpeg-video] " + line);
-  });
-  ffmpegVideo.on("close", function(code) { console.log("[ffmpeg-video] exited code " + code); });
+  ffmpegVideo.on("close", function(code) { console.log("[ffmpeg-video] exited " + code); });
   ffmpegVideo.on("error", function(e) { console.warn("[ffmpeg-video] failed: " + e.message); });
 
-  sessions.set(ws, {
-    type: "wine",
-    wineProc,
-    ffmpegVideo,
-    ffmpegAudio: null,
-    frameInterval: null,
-    wallet,
-    romId
-  });
-
+  sessions.set(ws, { type: "wine", wineProc, ffmpegVideo, ffmpegAudio: null, frameInterval: null, wallet, romId });
   ws.send(JSON.stringify({ type: "status", message: "" }));
   console.log("[wine] session live: " + wallet + " / " + romId);
 }
@@ -208,20 +162,11 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
 
   var browser = await puppeteer.launch({
     headless: true,
-    args: [
-      "--no-sandbox", "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage", "--disable-gpu",
-      "--autoplay-policy=no-user-gesture-required"
-    ]
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--autoplay-policy=no-user-gesture-required"]
   });
 
   var page = await browser.newPage();
   await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H });
-
-  page.on("pageerror", function(e) { console.warn("[page] error: " + e.message); });
-  page.on("console", function(m) {
-    if (m.type() === "error") console.log("[page-console] " + m.text());
-  });
 
   var keepalive = setInterval(function() {
     if (ws.readyState === 1) ws.send(JSON.stringify({ type: "status", message: "Loading emulator..." }));
@@ -233,9 +178,7 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
   try {
     await page.waitForSelector("canvas", { timeout: 60000 });
     canvasFound = true;
-    console.log("[session] canvas found");
   } catch(e) {
-    console.warn("[session] canvas not found within 60s");
     try { await page.screenshot({ path: "/tmp/debug-screenshot.jpg", type: "jpeg", quality: 80 }); } catch(se) {}
   }
 
@@ -267,7 +210,6 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
 
   var playEl = allClickable.find(function(el) { return el.text === "Play"; });
   if (playEl) {
-    console.log("[session] clicking Play at " + playEl.x + "," + playEl.y);
     await page.mouse.click(playEl.x, playEl.y);
     await new Promise(function(r) { setTimeout(r, 1000); });
   }
@@ -276,33 +218,18 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
 
   var ffmpegProc = null;
   try {
-    console.log("[session] starting ffmpeg audio capture from PulseAudio...");
     ffmpegProc = spawn("ffmpeg", [
-      "-f", "pulse",
-      "-i", "virtual_speaker.monitor",
-      "-c:a", "libopus",
-      "-b:a", "64k",
-      "-vn",
-      "-f", "webm",
-      "-cluster_size_limit", "2M",
-      "-cluster_time_limit", "100",
-      "pipe:1"
+      "-f", "pulse", "-i", "virtual_speaker.monitor",
+      "-c:a", "libopus", "-b:a", "64k", "-vn", "-f", "webm",
+      "-cluster_size_limit", "2M", "-cluster_time_limit", "100", "pipe:1"
     ], { stdio: ["ignore", "pipe", "pipe"] });
 
     ffmpegProc.stdout.on("data", function(chunk) {
       if (ws.readyState !== 1) return;
-      try { ws.send(JSON.stringify({ type: "audio", data: chunk.toString("base64") })); }
-      catch(e) { console.warn("[ffmpeg] send error: " + e.message); }
+      try { ws.send(JSON.stringify({ type: "audio", data: chunk.toString("base64") })); } catch(e) {}
     });
-    ffmpegProc.stderr.on("data", function(d) {
-      var line = d.toString().trim();
-      if (line.includes("Stream") || line.includes("Error") || line.includes("error")) {
-        console.log("[ffmpeg] " + line);
-      }
-    });
-    ffmpegProc.on("close", function(code) { console.log("[ffmpeg] exited code " + code); });
+    ffmpegProc.on("close", function(code) { console.log("[ffmpeg] exited " + code); });
     ffmpegProc.on("error", function(e) { console.warn("[ffmpeg] failed: " + e.message); });
-    console.log("[session] ffmpeg audio capture started");
   } catch(e) {
     console.warn("[session] ffmpeg setup failed: " + e.message);
   }
@@ -322,11 +249,9 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
       }
       ws.send(JSON.stringify({ image: "data:image/jpeg;base64," + imageBase64 }), function(err) {
         sendingFrame = false;
-        if (err) console.warn("[session] send error: " + err.message);
       });
     } catch(e) {
       sendingFrame = false;
-      console.error("[session] screenshot failed: " + e.message);
       clearInterval(frameInterval);
       destroySession(ws);
     }
@@ -342,20 +267,16 @@ async function createSession(ws, romFile, romCore, romId, wallet) {
 async function destroySession(ws) {
   var session = sessions.get(ws);
   if (!session) return;
-
   if (session.type === "wine") {
     try { if (session.ffmpegVideo) session.ffmpegVideo.kill("SIGKILL"); } catch(e) {}
-    try { if (session.ffmpegAudio) session.ffmpegAudio.kill("SIGKILL"); } catch(e) {}
-    try { if (session.wineProc)    session.wineProc.kill("SIGKILL");    } catch(e) {}
+    try { if (session.wineProc) session.wineProc.kill("SIGKILL"); } catch(e) {}
     try { require("child_process").execSync("pkill -9 -f x11grab 2>/dev/null || true"); } catch(e) {}
     try { require("child_process").execSync("pkill -9 -f Game.exe 2>/dev/null || true"); } catch(e) {}
-    try { require("child_process").execSync("pkill -9 -f wineserver 2>/dev/null || true"); } catch(e) {}
   } else {
     clearInterval(session.frameInterval);
     try { if (session.ffmpegProc) session.ffmpegProc.kill("SIGTERM"); } catch(e) {}
     try { await session.browser.close(); } catch(e) {}
   }
-
   sessions.delete(ws);
   console.log("[session] destroyed: " + session.wallet + " / " + session.romId);
 }
@@ -365,58 +286,55 @@ async function destroySession(ws) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 wss.on("connection", async function(ws, req) {
   var url       = new URL(req.url, "http://localhost");
-  var mode      = url.searchParams.get("mode")   || "player";
-  var romFile   = url.searchParams.get("rom")    || "Kaizo Mario (English).sfc";
-  var romCore   = url.searchParams.get("core")   || "snes";
-  var romId     = url.searchParams.get("id")     || url.searchParams.get("rom") || "kaizo-mario-world-1";
-  var wallet    = url.searchParams.get("wallet") || "anonymous";
+  var mode      = url.searchParams.get("mode")    || "player";
+  var romFile   = url.searchParams.get("rom")     || "Kaizo Mario (English).sfc";
+  var romCore   = url.searchParams.get("core")    || "snes";
+  var romId     = url.searchParams.get("id")      || romFile;
+  var wallet    = url.searchParams.get("wallet")  || "anonymous";
   var channelId = url.searchParams.get("channel") || romId;
 
-  console.log("[ws] connected: mode=" + mode + " channel=" + channelId + " rom=" + romFile);
+  console.log("[ws] connected: mode=" + mode + " channel=" + channelId);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // BROADCAST MODE — you stream from your local SNES9x
-  // broadcaster.html connects with ?mode=broadcast&channel=mystream
-  // MML document connects with ?mode=view&channel=mystream
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ── BROADCAST MODE ─────────────────────────────────────────────
   if (mode === "broadcast") {
-    // Register this ws as the broadcaster for this channel
-    var oldBroadcaster = broadcastSenders.get(channelId);
-    if (oldBroadcaster && oldBroadcaster.readyState === 1) {
-      oldBroadcaster.send(JSON.stringify({ type: "status", message: "Replaced by new broadcaster" }));
-      oldBroadcaster.close();
+    var oldSender = broadcastSenders.get(channelId);
+    if (oldSender && oldSender.readyState === 1) {
+      try { oldSender.close(); } catch(e) {}
     }
     broadcastSenders.set(channelId, ws);
     if (!broadcastViewers.has(channelId)) broadcastViewers.set(channelId, new Set());
 
     var viewerCount = broadcastViewers.get(channelId).size;
-    ws.send(JSON.stringify({
-      type: "status",
-      message: "Broadcasting on channel: " + channelId + " (" + viewerCount + " viewers)"
-    }));
+    ws.send(JSON.stringify({ type: "status", message: "Broadcasting on channel: " + channelId + " (" + viewerCount + " viewers)" }));
     console.log("[broadcast] broadcaster connected on channel: " + channelId);
 
-    // Frames from broadcaster → forward to all viewers on this channel
     ws.on("message", function(data) {
+      // Cache the last frame so new viewers get it immediately on connect
+      try {
+        var parsed = JSON.parse(data);
+        if (parsed.image) {
+          broadcastLastFrame.set(channelId, data.toString());
+        }
+      } catch(e) {}
+
+      // Forward to all current viewers
       var viewers = broadcastViewers.get(channelId);
       if (!viewers || viewers.size === 0) return;
       viewers.forEach(function(viewerWs) {
         if (viewerWs.readyState === 1) {
-          try { viewerWs.send(data); }
-          catch(e) { console.warn("[broadcast] viewer send error: " + e.message); }
+          try { viewerWs.send(data); } catch(e) {}
         }
       });
     });
 
     ws.on("close", function() {
       broadcastSenders.delete(channelId);
-      // Notify viewers the stream ended
+      broadcastLastFrame.delete(channelId);
       var viewers = broadcastViewers.get(channelId);
       if (viewers) {
         viewers.forEach(function(viewerWs) {
           if (viewerWs.readyState === 1) {
-            try { viewerWs.send(JSON.stringify({ type: "status", message: "Stream ended" })); }
-            catch(e) {}
+            try { viewerWs.send(JSON.stringify({ type: "status", message: "Stream ended" })); } catch(e) {}
           }
         });
       }
@@ -427,31 +345,34 @@ wss.on("connection", async function(ws, req) {
     return;
   }
 
+  // ── VIEW MODE ───────────────────────────────────────────────────
   if (mode === "view") {
-    // Register as a viewer for this channel
     if (!broadcastViewers.has(channelId)) broadcastViewers.set(channelId, new Set());
     broadcastViewers.get(channelId).add(ws);
 
     var broadcaster = broadcastSenders.get(channelId);
     if (broadcaster && broadcaster.readyState === 1) {
       ws.send(JSON.stringify({ type: "status", message: "Connected to live stream" }));
-      // Let broadcaster know viewer count updated
-      var count = broadcastViewers.get(channelId).size;
-      try { broadcaster.send(JSON.stringify({ type: "viewerCount", count: count })); } catch(e) {}
+      // Send last cached frame immediately so viewer sees something right away
+      var lastFrame = broadcastLastFrame.get(channelId);
+      if (lastFrame) {
+        try { ws.send(lastFrame); } catch(e) {}
+      }
+      // Update broadcaster with new viewer count
+      try { broadcaster.send(JSON.stringify({ type: "viewerCount", count: broadcastViewers.get(channelId).size })); } catch(e) {}
     } else {
       ws.send(JSON.stringify({ type: "status", message: "Waiting for broadcaster..." }));
     }
 
-    console.log("[view] viewer connected to channel: " + channelId +
-      " (" + broadcastViewers.get(channelId).size + " total viewers)");
+    console.log("[view] viewer connected to channel: " + channelId + " (" + broadcastViewers.get(channelId).size + " total viewers)");
 
     ws.on("close", function() {
       var viewers = broadcastViewers.get(channelId);
       if (viewers) {
         viewers.delete(ws);
-        var broadcaster = broadcastSenders.get(channelId);
-        if (broadcaster && broadcaster.readyState === 1) {
-          try { broadcaster.send(JSON.stringify({ type: "viewerCount", count: viewers.size })); } catch(e) {}
+        var bc = broadcastSenders.get(channelId);
+        if (bc && bc.readyState === 1) {
+          try { bc.send(JSON.stringify({ type: "viewerCount", count: viewers.size })); } catch(e) {}
         }
       }
       console.log("[view] viewer disconnected from channel: " + channelId);
@@ -461,9 +382,7 @@ wss.on("connection", async function(ws, req) {
     return;
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // EXISTING PLAYER MODE — unchanged from original
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ── PLAYER MODE (existing emulator/wine sessions) ───────────────
   ws.send(JSON.stringify({ type: "status", message: "Launching..." }));
 
   try {
@@ -488,8 +407,7 @@ wss.on("connection", async function(ws, req) {
       if (session.type === "wine") {
         var wineKey = WINE_KEY_MAP[msg.key];
         if (!wineKey) return;
-        var action = msg.type === "keyDown" ? "keydown" : "keyup";
-        spawn("xdotool", [action, "--clearmodifiers", wineKey], {
+        spawn("xdotool", [msg.type === "keyDown" ? "keydown" : "keyup", "--clearmodifiers", wineKey], {
           env: Object.assign({}, process.env, { DISPLAY: DISPLAY })
         });
         return;
@@ -498,17 +416,16 @@ wss.on("connection", async function(ws, req) {
       if (!key) return;
       if (msg.type === "keyDown") await session.page.keyboard.down(key);
       else if (msg.type === "keyUp") await session.page.keyboard.up(key);
-    } catch(e) { console.warn("[ws] input error: " + e.message); }
+    } catch(e) {}
   });
 
-  ws.on("close", function() { console.log("[ws] disconnected: " + wallet); destroySession(ws); });
+  ws.on("close", function() { destroySession(ws); });
   ws.on("error", function(e) { console.error("[ws] error: " + e.message); destroySession(ws); });
 });
 
 var PORT = process.env.PORT || 8081;
 server.listen(PORT, function() {
   console.log("Puppeteer SNES server on port " + PORT);
-  console.log("Base game URL:          " + GAME_BASE_URL);
-  console.log("Target FPS:             " + TARGET_FPS);
-  console.log("JPEG quality:           " + JPEG_QUALITY);
+  console.log("Target FPS: " + TARGET_FPS);
+  console.log("JPEG quality: " + JPEG_QUALITY);
 });
