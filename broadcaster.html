@@ -26,7 +26,6 @@
     padding: 10px 20px; border-radius: 8px; border: none;
     font-size: 14px; font-weight: bold; cursor: pointer; transition: opacity 0.15s;
   }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
   #start-btn { background: #22cc66; color: #000; width: 100%; margin-top: 12px; }
   #stop-btn  { background: #cc2222; color: #fff; width: 100%; margin-top: 8px; display: none; }
   #status {
@@ -40,22 +39,12 @@
     border-radius: 8px; overflow: hidden; display: none; position: relative;
   }
   #preview { width: 100%; display: block; }
-  #viewer-count {
-    position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7);
-    color: #FFD700; font-size: 12px; padding: 4px 10px; border-radius: 20px;
-  }
-  #audio-indicator {
-    position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7);
-    color: #aaffaa; font-size: 11px; padding: 4px 10px; border-radius: 20px;
-    display: none;
+  #stats {
+    position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.75);
+    color: #FFD700; font-size: 11px; padding: 4px 10px; border-radius: 20px;
   }
   canvas { display: none; }
   .hint { font-size: 11px; color: #555; text-align: center; max-width: 600px; line-height: 1.6; }
-  .audio-note {
-    font-size: 11px; color: #ffcc44; text-align: center; max-width: 600px;
-    line-height: 1.6; background: #1a1500; border: 1px solid #443300;
-    border-radius: 8px; padding: 10px 14px;
-  }
 </style>
 </head>
 <body>
@@ -75,9 +64,19 @@
       <input id="channel-id" type="text" value="snes-live" placeholder="snes-live">
     </div>
   </div>
-  <div style="margin-top:10px">
-    <label>FPS (frames per second)</label>
-    <input id="fps" type="number" value="20" min="5" max="30" style="width:80px">
+  <div style="margin-top:10px; display:flex; gap:16px; align-items:flex-end">
+    <div>
+      <label>FPS</label>
+      <input id="fps" type="number" value="15" min="5" max="30" style="width:70px">
+    </div>
+    <div>
+      <label>JPEG Quality (0.1-1.0)</label>
+      <input id="quality" type="number" value="0.5" min="0.1" max="1.0" step="0.1" style="width:80px">
+    </div>
+    <div>
+      <label>Max Width (px)</label>
+      <input id="maxwidth" type="number" value="480" min="160" max="640" step="80" style="width:80px">
+    </div>
   </div>
   <button id="start-btn" onclick="startBroadcast()">▶ Start Broadcasting</button>
   <button id="stop-btn"  onclick="stopBroadcast()">■ Stop Broadcasting</button>
@@ -87,40 +86,39 @@
 
 <div id="preview-wrap">
   <img id="preview" alt="Live preview">
-  <div id="viewer-count">0 viewers</div>
-  <div id="audio-indicator">🔊 Audio streaming</div>
+  <div id="stats">0 viewers • 0 fps</div>
 </div>
 
 <canvas id="capture-canvas"></canvas>
 
 <p class="hint">
-  When you click Start, your browser will ask you to pick a window or screen to share.<br>
-  Select your SNES9x window. Check <strong>"Share system audio"</strong> if prompted.
-</p>
-
-<p class="audio-note">
-  🎧 For audio: Install VB-Audio Virtual Cable, set SNES9x output to CABLE Input,<br>
-  enable "Listen to this device" in Windows Sound settings → your headphones.<br>
-  Then Chrome will capture both video and audio from SNES9x.
+  Select your SNES9x window and check <strong>"Also share system audio"</strong>.<br>
+  Lower quality + lower width = smoother delivery in OtherSide.
 </p>
 
 <script>
-  var socket        = null;
-  var mediaStream   = null;
-  var captureInterval = null;
-  var audioContext  = null;
+  var socket         = null;
+  var mediaStream    = null;
+  var captureLoop    = null;
+  var audioCtx       = null;
   var audioProcessor = null;
-  var audioSource   = null;
-  var audioInterval = null;
-  var hasAudio      = false;
+  var audioSource    = null;
+  var hasAudio       = false;
+
+  // Frame rate tracking
+  var framesSent  = 0;
+  var fpsDisplay  = 0;
+  var lastFpsTick = Date.now();
 
   var videoEl = document.createElement("video");
   videoEl.autoplay = true;
-  videoEl.muted = true;
+  videoEl.muted    = true;
   videoEl.playsInline = true;
 
-  var canvas = document.getElementById("capture-canvas");
-  var ctx    = canvas.getContext("2d");
+  var canvas  = document.getElementById("capture-canvas");
+  var ctx2d   = canvas.getContext("2d");
+  var preview = document.getElementById("preview");
+  var stats   = document.getElementById("stats");
 
   function setStatus(msg, type) {
     var el = document.getElementById("status");
@@ -128,202 +126,148 @@
     el.className = type || "";
   }
 
-  function setViewerCount(n) {
-    document.getElementById("viewer-count").textContent =
-      n + " viewer" + (n !== 1 ? "s" : "");
-  }
+  // Update fps counter every second
+  setInterval(function() {
+    fpsDisplay  = framesSent;
+    framesSent  = 0;
+    var viewers = stats.textContent.match(/(\d+) viewer/);
+    var v = viewers ? viewers[1] : "0";
+    stats.textContent = v + " viewer" + (v !== "1" ? "s" : "") + " • " + fpsDisplay + " fps";
+  }, 1000);
 
   async function startBroadcast() {
     var serverUrl = document.getElementById("server-url").value.trim();
     var channelId = document.getElementById("channel-id").value.trim();
-    var fps       = parseInt(document.getElementById("fps").value) || 20;
+    var fps       = parseInt(document.getElementById("fps").value)     || 15;
+    var quality   = parseFloat(document.getElementById("quality").value) || 0.5;
+    var maxWidth  = parseInt(document.getElementById("maxwidth").value) || 480;
 
-    if (!serverUrl || !channelId) {
-      setStatus("Please fill in server URL and channel ID.", "error");
-      return;
-    }
-
-    // ── Step 1: Request screen + audio capture ──────────────────
-    setStatus("Requesting screen capture permission...", "warn");
+    setStatus("Requesting screen capture...", "warn");
     try {
       mediaStream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: fps },
-        audio: true  // Request audio — works if VB-Audio is set up
+        audio: true
       });
     } catch(e) {
-      setStatus("Screen capture cancelled or denied: " + e.message, "error");
+      setStatus("Cancelled: " + e.message, "error");
       return;
     }
 
-    // Check if audio track was captured
-    var audioTracks = mediaStream.getAudioTracks();
-    hasAudio = audioTracks.length > 0;
-    if (hasAudio) {
-      console.log("[broadcaster] audio track captured:", audioTracks[0].label);
-      document.getElementById("audio-indicator").style.display = "block";
-    } else {
-      console.log("[broadcaster] no audio track — video only");
-    }
+    hasAudio = mediaStream.getAudioTracks().length > 0;
+    console.log("[broadcaster] audio:", hasAudio);
 
-    // ── Step 2: Attach video stream ─────────────────────────────
-    setStatus("Attaching video stream...", "warn");
+    // Attach video
     try {
-      await new Promise(function(resolve, reject) {
-        var settled = false;
-        function done() { if (!settled) { settled = true; resolve(); } }
-        function fail(e) { if (!settled) { settled = true; reject(e); } }
-        videoEl.onloadedmetadata = done;
-        videoEl.onerror = function() { fail(new Error("Video element error")); };
-        try {
-          videoEl.srcObject = mediaStream;
-        } catch(e) {
-          try { videoEl.src = URL.createObjectURL(mediaStream); done(); }
-          catch(e2) { fail(new Error("Cannot attach stream: " + e2.message)); }
-        }
-        setTimeout(done, 2500);
+      await new Promise(function(resolve) {
+        videoEl.onloadedmetadata = resolve;
+        try { videoEl.srcObject = mediaStream; }
+        catch(e) { videoEl.src = URL.createObjectURL(mediaStream); resolve(); }
+        setTimeout(resolve, 2500);
       });
-      try { await videoEl.play(); } catch(e) { console.warn("play():", e.message); }
+      try { await videoEl.play(); } catch(e) {}
     } catch(e) {
-      setStatus("Stream attach failed: " + e.message, "error");
-      cleanup();
-      return;
+      setStatus("Video attach failed: " + e.message, "error");
+      cleanup(); return;
     }
 
-    // ── Step 3: Connect WebSocket to Railway relay ──────────────
-    setStatus("Connecting to relay server...", "warn");
-    var wsUrl = serverUrl + "?mode=broadcast&channel=" + encodeURIComponent(channelId);
-    try {
-      socket = new WebSocket(wsUrl);
-    } catch(e) {
-      setStatus("Invalid WebSocket URL: " + e.message, "error");
-      cleanup();
-      return;
-    }
+    // Connect WebSocket
+    setStatus("Connecting...", "warn");
+    socket = new WebSocket(serverUrl + "?mode=broadcast&channel=" + encodeURIComponent(channelId));
 
     socket.onopen = function() {
-      setStatus("✅ Connected! Broadcasting on channel: " + channelId +
-        (hasAudio ? " (video + audio)" : " (video only)"));
+      setStatus("✅ Broadcasting" + (hasAudio ? " (video + audio)" : " (video only)"));
       document.getElementById("start-btn").style.display = "none";
-      document.getElementById("stop-btn").style.display = "block";
+      document.getElementById("stop-btn").style.display  = "block";
       document.getElementById("preview-wrap").style.display = "block";
-      startVideoCapture(fps);
-      if (hasAudio) startAudioCapture();
+      startVideo(fps, quality, maxWidth);
+      if (hasAudio) startAudio();
     };
 
     socket.onmessage = function(e) {
       try {
         var msg = JSON.parse(e.data);
-        if (msg.type === "viewerCount") setViewerCount(msg.count);
-        if (msg.type === "status") setStatus("Server: " + msg.message);
+        if (msg.type === "viewerCount") {
+          stats.textContent = msg.count + " viewer" + (msg.count !== 1 ? "s" : "") + " • " + fpsDisplay + " fps";
+        }
       } catch(ex) {}
     };
 
     socket.onclose = function() {
-      setStatus("Disconnected from relay.", "warn");
+      setStatus("Disconnected.", "warn");
       cleanup();
       document.getElementById("start-btn").style.display = "block";
-      document.getElementById("stop-btn").style.display = "none";
+      document.getElementById("stop-btn").style.display  = "none";
       document.getElementById("preview-wrap").style.display = "none";
     };
 
-    socket.onerror = function() {
-      setStatus("WebSocket error — check your server URL.", "error");
-    };
-
-    mediaStream.getVideoTracks()[0].onended = function() {
-      setStatus("Screen share ended by browser.", "warn");
-      stopBroadcast();
-    };
+    socket.onerror = function() { setStatus("WebSocket error.", "error"); };
+    mediaStream.getVideoTracks()[0].onended = function() { stopBroadcast(); };
   }
 
-  function startVideoCapture(fps) {
+  function startVideo(fps, quality, maxWidth) {
     var INTERVAL = 1000 / fps;
     var sending  = false;
-    var preview  = document.getElementById("preview");
 
-    captureInterval = setInterval(function() {
+    captureLoop = setInterval(function() {
       if (sending) return;
       if (!socket || socket.readyState !== 1) return;
-      if (!videoEl.videoWidth || !videoEl.videoHeight) return;
+      if (!videoEl.videoWidth) return;
 
       sending = true;
 
-      var w = Math.min(videoEl.videoWidth, 640);
+      var w = Math.min(videoEl.videoWidth, maxWidth);
       var h = Math.round(videoEl.videoHeight * (w / videoEl.videoWidth));
       canvas.width  = w;
       canvas.height = h;
 
-      try { ctx.drawImage(videoEl, 0, 0, w, h); }
+      try { ctx2d.drawImage(videoEl, 0, 0, w, h); }
       catch(e) { sending = false; return; }
 
-      preview.src = canvas.toDataURL("image/jpeg", 0.7);
+      // Update local preview (lower quality for speed)
+      preview.src = canvas.toDataURL("image/jpeg", 0.4);
 
-      canvas.toBlob(function(blob) {
-        if (!blob) { sending = false; return; }
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          if (socket && socket.readyState === 1) {
-            try {
-              socket.send(JSON.stringify({ image: reader.result }));
-            } catch(e) { setStatus("Send error: " + e.message, "error"); }
-          }
-          sending = false;
-        };
-        reader.onerror = function() { sending = false; };
-        reader.readAsDataURL(blob);
-      }, "image/jpeg", 0.6);
+      // Use toDataURL directly — faster than Blob+FileReader pipeline
+      var dataUrl = canvas.toDataURL("image/jpeg", quality);
+      if (socket && socket.readyState === 1) {
+        try {
+          socket.send(JSON.stringify({ image: dataUrl }));
+          framesSent++;
+        } catch(e) {}
+      }
+      sending = false;
 
     }, INTERVAL);
   }
 
-  function startAudioCapture() {
+  function startAudio() {
     try {
-      // Create audio context from the captured stream
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      audioSource  = audioContext.createMediaStreamSource(mediaStream);
-
-      // Use ScriptProcessor to capture raw PCM and encode as base64
-      var bufferSize = 4096;
-      audioProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+      audioCtx      = new (window.AudioContext || window.webkitAudioContext)();
+      audioSource   = audioCtx.createMediaStreamSource(mediaStream);
+      audioProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
 
       audioSource.connect(audioProcessor);
-      audioProcessor.connect(audioContext.destination);
+      audioProcessor.connect(audioCtx.destination);
 
       audioProcessor.onaudioprocess = function(e) {
         if (!socket || socket.readyState !== 1) return;
-
-        var inputData = e.inputBuffer.getChannelData(0);
-        var pcm16     = new Int16Array(inputData.length);
-
-        // Convert Float32 PCM to Int16
-        for (var i = 0; i < inputData.length; i++) {
-          var s = Math.max(-1, Math.min(1, inputData[i]));
+        var input  = e.inputBuffer.getChannelData(0);
+        var pcm16  = new Int16Array(input.length);
+        for (var i = 0; i < input.length; i++) {
+          var s = Math.max(-1, Math.min(1, input[i]));
           pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
-
-        // Send as base64
         var bytes  = new Uint8Array(pcm16.buffer);
         var binary = "";
-        for (var j = 0; j < bytes.byteLength; j++) {
-          binary += String.fromCharCode(bytes[j]);
-        }
-        var base64 = btoa(binary);
-
+        for (var j = 0; j < bytes.byteLength; j++) binary += String.fromCharCode(bytes[j]);
         try {
           socket.send(JSON.stringify({
-            type:       "audio",
-            data:       base64,
-            sampleRate: audioContext.sampleRate,
-            channels:   1
+            type: "audio", data: btoa(binary),
+            sampleRate: audioCtx.sampleRate, channels: 1
           }));
         } catch(err) {}
       };
-
-      console.log("[broadcaster] audio capture started, sampleRate:", audioContext.sampleRate);
     } catch(e) {
-      console.warn("[broadcaster] audio capture failed:", e.message);
-      hasAudio = false;
-      document.getElementById("audio-indicator").style.display = "none";
+      console.warn("[broadcaster] audio failed:", e.message);
     }
   }
 
@@ -336,21 +280,15 @@
   }
 
   function cleanup() {
-    if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
-    if (audioProcessor)  { try { audioProcessor.disconnect(); } catch(e) {} audioProcessor = null; }
-    if (audioSource)     { try { audioSource.disconnect(); } catch(e) {} audioSource = null; }
-    if (audioContext)    { try { audioContext.close(); } catch(e) {} audioContext = null; }
-    if (socket)          { try { socket.close(); } catch(e) {} socket = null; }
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(function(t) { t.stop(); });
-      mediaStream = null;
-    }
+    if (captureLoop)    { clearInterval(captureLoop); captureLoop = null; }
+    if (audioProcessor) { try { audioProcessor.disconnect(); } catch(e) {} audioProcessor = null; }
+    if (audioSource)    { try { audioSource.disconnect(); } catch(e) {} audioSource = null; }
+    if (audioCtx)       { try { audioCtx.close(); } catch(e) {} audioCtx = null; }
+    if (socket)         { try { socket.close(); } catch(e) {} socket = null; }
+    if (mediaStream)    { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
     try { videoEl.srcObject = null; } catch(e) {}
-    try { videoEl.src = ""; } catch(e) {}
     hasAudio = false;
-    document.getElementById("audio-indicator").style.display = "none";
   }
 </script>
-
 </body>
 </html>
