@@ -53,6 +53,28 @@ app.get("/debug-display.jpg", function(req, res) {
   } catch(e) { res.status(500).send("Error: " + e.message); }
 });
 
+// Serve mml-screen.html as a static HTML file
+// Railway's Networked DOM server picks this up via the websocket handler below
+app.get("/mml-screen.html", function(req, res) {
+  res.setHeader("Content-Type", "text/html");
+  res.sendFile("/app/mml-screen.html");
+});
+
+// Serve last broadcast frame as JPEG for fallback polling
+app.get("/last-frame/:channelId", function(req, res) {
+  var channelId = req.params.channelId;
+  var lastFrame = broadcastLastFrame.get(channelId);
+  if (!lastFrame) return res.status(404).send("No frame yet");
+  try {
+    var parsed = JSON.parse(lastFrame);
+    var base64 = parsed.image.replace("data:image/jpeg;base64,", "");
+    var buf = Buffer.from(base64, "base64");
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(buf);
+  } catch(e) { res.status(500).send("Error: " + e.message); }
+});
+
 const KEY_MAP = {
   up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
   a: "z", b: "x", x: "a", y: "s",
