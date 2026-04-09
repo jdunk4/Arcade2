@@ -21,157 +21,47 @@
 
   <script>
   (function(root) {
-    var SNES_SERVER_WS = "wss://arcade2-production.up.railway.app";
-    var PREVIEW_IMG    = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png";
+    var SERVER  = "wss://arcade2-production.up.railway.app";
+    var PREVIEW = "https://raw.githubusercontent.com/jdunk4/ARCADE1/main/SCREEN/NSMW1-12MagicOrbs.png";
 
-    function set(id, attr, val) {
+    function set(id, a, v) {
       var e = root.querySelector("#" + id);
-      if (e) e.setAttribute(attr, val);
+      if (e) e.setAttribute(a, v);
     }
 
-    // ── Audio — same MediaSource chunked approach as arcade-b ────
-    var audioEl        = null;
-    var mediaSource    = null;
-    var sourceBuffer   = null;
-    var audioObjectURL = null;
-    var audioQueue     = [];
-    var sbReady        = false;
-    var audioInit      = false;
-    var audioEnabled   = false;
-    var MAX_QUEUE      = 3;
-
-    function initAudio() {
-      if (audioInit) return;
-      audioInit = true;
+    function handle(data) {
       try {
-        if (!window.MediaSource) return;
-        audioEl           = new Audio();
-        audioEl.autoplay  = true;
-        mediaSource       = new MediaSource();
-        audioObjectURL    = URL.createObjectURL(mediaSource);
-        audioEl.src       = audioObjectURL;
-
-        mediaSource.addEventListener("sourceopen", function() {
-          try {
-            // PCM audio from broadcaster — use webm/opus if available
-            // Fall back to raw PCM via wav
-            sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="opus"');
-            sourceBuffer.mode = "sequence";
-            sbReady = true;
-            flushQueue();
-          } catch(e) {
-            console.warn("[audio] sourceopen error:", e.message);
-          }
-        });
-
-        audioEl.play().catch(function(e) {
-          console.warn("[audio] play blocked:", e.message);
-        });
-
-      } catch(e) {
-        console.warn("[audio] init failed:", e.message);
-      }
-    }
-
-    function flushQueue() {
-      if (!audioEnabled || !sbReady || !sourceBuffer ||
-          sourceBuffer.updating || audioQueue.length === 0) return;
-      while (audioQueue.length > MAX_QUEUE) audioQueue.shift();
-      var chunk = audioQueue.shift();
-      try {
-        sourceBuffer.appendBuffer(chunk);
-      } catch(e) {
-        audioQueue = [];
-        return;
-      }
-      sourceBuffer.addEventListener("updateend", function onUpdate() {
-        sourceBuffer.removeEventListener("updateend", onUpdate);
-        flushQueue();
-      });
-    }
-
-    function playAudioChunk(base64Data) {
-      if (!audioEnabled || !audioEl || !mediaSource) return;
-      try {
-        var binary = atob(base64Data);
-        var buf    = new Uint8Array(binary.length);
-        for (var i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
-        audioQueue.push(buf.buffer);
-        flushQueue();
+        var f = JSON.parse(data);
+        if (f.type === "status") {
+          set("status-label", "content", f.message || "");
+          if (f.message === "Stream ended") set("screen", "src", PREVIEW);
+          return;
+        }
+        if (f.image) {
+          set("screen", "src", f.image);
+          set("status-label", "content", "");
+        }
       } catch(e) {}
     }
 
-    function resumeAudio() {
-      if (!audioEnabled) return;
-      if (!audioInit) initAudio();
-      if (audioEl && audioEl.paused) audioEl.play().catch(function() {});
-    }
-
-    // ── Frame handling ────────────────────────────────────────────
-    function handleFrame(data) {
-      try {
-        var frame = JSON.parse(data);
-
-        if (frame.type === "audio" && frame.data) {
-          playAudioChunk(frame.data);
-          return;
-        }
-
-        if (frame.type === "status") {
-          set("status-label", "content", frame.message);
-          if (frame.message === "Stream ended") set("screen", "src", PREVIEW_IMG);
-          return;
-        }
-
-        if (frame.image) {
-          set("screen", "src", frame.image);
-          set("status-label", "content", "");
-          // Enable and resume audio when first frame arrives
-          if (!audioEnabled) {
-            audioEnabled = true;
-            resumeAudio();
-          }
-        }
-      } catch(e) {
-        console.log("[screen] parse error: " + e.message);
-      }
-    }
-
-    // ── WebSocket ─────────────────────────────────────────────────
-    var socket = null;
-
     function connect() {
-      var wsUrl = SNES_SERVER_WS + "?mode=view&channel=snes-live";
-      socket    = new WebSocket(wsUrl);
-
-      socket.onopen = function() {
-        console.log("[screen] connected");
-        set("status-label", "content", "");
-        initAudio();
-      };
-
-      socket.onmessage = function(msg) {
-        var data = msg.data;
-        if (data && typeof data.text === "function") {
-          data.text().then(function(text) { handleFrame(text); }).catch(function() {});
+      var s = new WebSocket(SERVER + "?mode=view&channel=snes-live");
+      s.onmessage = function(m) {
+        var d = m.data;
+        if (d && typeof d.text === "function") {
+          d.text().then(handle).catch(function() {});
           return;
         }
-        handleFrame(data);
+        handle(d);
       };
-
-      socket.onclose = function() {
-        audioEnabled = false;
+      s.onclose = function() {
         set("status-label", "content", "Reconnecting...");
         setTimeout(connect, 3000);
       };
-
-      socket.onerror = function() {
-        set("status-label", "content", "Connection error");
-      };
+      s.onerror = function() {};
     }
 
     setTimeout(connect, 500);
-
   })(document.currentScript ? document.currentScript.closest("m-group") : document);
   </script>
 
