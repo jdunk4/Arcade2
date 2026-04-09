@@ -60,11 +60,17 @@ app.get("/mml-screen.html", function(req, res) {
   res.sendFile("/app/mml-screen.html");
 });
 
-// Serve last broadcast frame as JPEG for polling
-// CORS headers allow mmleditor.com and OtherSide to fetch this
-app.get("/last-frame/:channelId", function(req, res) {
+// Serve last broadcast frame as JPEG
+// Two alternating endpoints /frame-a and /frame-b
+// MML script switches between them so URL always changes
+// but stays a valid https:// URL (no blob/base64 issues)
+var frameCounter = new Map(); // channelId -> counter
+
+function serveFrame(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
   var channelId = req.params.channelId;
   var lastFrame = broadcastLastFrame.get(channelId);
   if (!lastFrame) return res.status(404).send("No frame yet");
@@ -73,11 +79,13 @@ app.get("/last-frame/:channelId", function(req, res) {
     var base64 = parsed.image.replace("data:image/jpeg;base64,", "");
     var buf = Buffer.from(base64, "base64");
     res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
     res.send(buf);
   } catch(e) { res.status(500).send("Error: " + e.message); }
-});
+}
+
+app.get("/last-frame/:channelId", serveFrame);
+app.get("/frame-a/:channelId", serveFrame);
+app.get("/frame-b/:channelId", serveFrame);
 
 const KEY_MAP = {
   up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
@@ -330,25 +338,32 @@ wss.on("connection", async function(ws, req) {
     broadcastSenders.set(channelId, ws);
     if (!broadcastViewers.has(channelId)) broadcastViewers.set(channelId, new Set());
 
+    // Clear stale frame so viewers get fresh frames immediately on reconnect
+    broadcastLastFrame.delete(channelId);
+
     var viewerCount = broadcastViewers.get(channelId).size;
     ws.send(JSON.stringify({ type: "status", message: "Broadcasting on channel: " + channelId + " (" + viewerCount + " viewers)" }));
     console.log("[broadcast] broadcaster connected on channel: " + channelId);
 
     ws.on("message", function(data) {
+      // Always convert to string — broadcaster sends Buffer (binary)
+      // but viewers need UTF-8 text for JSON.parse to work
+      var dataStr = data.toString();
+
       // Cache the last frame so new viewers get it immediately on connect
       try {
-        var parsed = JSON.parse(data);
+        var parsed = JSON.parse(dataStr);
         if (parsed.image) {
-          broadcastLastFrame.set(channelId, data.toString());
+          broadcastLastFrame.set(channelId, dataStr);
         }
       } catch(e) {}
 
-      // Forward to all current viewers
+      // Forward to all current viewers as string
       var viewers = broadcastViewers.get(channelId);
       if (!viewers || viewers.size === 0) return;
       viewers.forEach(function(viewerWs) {
         if (viewerWs.readyState === 1) {
-          try { viewerWs.send(data); } catch(e) {}
+          try { viewerWs.send(dataStr); } catch(e) {}
         }
       });
     });
